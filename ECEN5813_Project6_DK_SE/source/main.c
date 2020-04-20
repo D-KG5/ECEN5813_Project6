@@ -49,8 +49,8 @@
 /*******************************************************************************
  * Prototypes
  ******************************************************************************/
-static void hello_task(void *pvParameters);
-
+static void task_one(void *pvParameters);
+static void task_two(void *pvParameters);
 /*******************************************************************************
  * Code
  ******************************************************************************/
@@ -64,7 +64,8 @@ int main(void)
     BOARD_BootClockRUN();
     BOARD_InitDebugConsole();
 
-    xTaskCreate(hello_task, "Hello_task", configMINIMAL_STACK_SIZE + 10, NULL, hello_task_PRIORITY, NULL);
+    xTaskCreate(task_one, "Hello_task_one", configMINIMAL_STACK_SIZE + 10, NULL, hello_task_PRIORITY, NULL);
+    xTaskCreate(task_two, "Hello_task_two", configMINIMAL_STACK_SIZE + 10, NULL, hello_task_PRIORITY, NULL);
     vTaskStartScheduler();
     for (;;)
         ;
@@ -73,12 +74,19 @@ int main(void)
 /*!
  * @brief Task responsible for printing of "Hello world." message.
  */
-static void hello_task(void *pvParameters)
+static void task_one(void *pvParameters)
 {
     for (;;)
     {
-    	dac_voltagevalue();
+    //	dac_voltagevalue();
         PRINTF("Hello world.\r\n");
-        vTaskSuspend(NULL);
+      //  vTaskSuspend(NULL);
     }
+}
+static void task_two(void *pvParameters)
+{
+	while(1)
+	{
+       PRINTF("Hello Task two\n\r");
+	}
 }
