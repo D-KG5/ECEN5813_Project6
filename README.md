@@ -13,7 +13,7 @@ PES Project 6 for ECEN 5813. By Dhruva Koley and Sagar Eligar
 	- circ_buffer.c: source file that contains circular buffer functions
 	- circ_buffer.h: header file for circ_buffer.c
 
-- uCUnit
+  - uCUnit
 	- System.c: source file that containsKL25Z specific system changes to allow uCUnit to work
 	- System.h: header file for System.h
 	- uCUnit.h: header file containing unit test functions
