@@ -57,6 +57,9 @@ static void task_two(void *pvParameters);
 /*!
  * @brief Application entry point.
  */
+int DAC_register_values[50];
+
+
 int main(void)
 {
     /* Init board hardware. */
@@ -64,7 +67,7 @@ int main(void)
     BOARD_BootClockRUN();
     BOARD_InitDebugConsole();
 
-    xTaskCreate(task_one, "Hello_task_one", configMINIMAL_STACK_SIZE + 10, NULL, hello_task_PRIORITY, NULL);
+    xTaskCreate(task_one, "Hello_task_one", 500, NULL, hello_task_PRIORITY, NULL);
   //  xTaskCreate(task_two, "Hello_task_two", configMINIMAL_STACK_SIZE + 10, NULL, hello_task_PRIORITY, NULL);
     vTaskStartScheduler();
     for (;;)
@@ -79,6 +82,10 @@ static void task_one(void *pvParameters)
     for (;;)
     {
     	dac_voltagevalue();
+//    	for(int i=0;i<50;i++)
+//    	{
+//    	DAC_SetBufferValue(DEMO_DAC_BASEADDR, 0U, DAC_register_values[i]);
+//    	}
         PRINTF("Hello world.\r\n");
         vTaskSuspend(NULL);
     }

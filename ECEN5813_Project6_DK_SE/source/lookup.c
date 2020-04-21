@@ -21,7 +21,7 @@
 
 //code for voltage
 
-static int DAC_register_values[50];
+extern int DAC_register_values[50];
 
 void dac_voltagevalue()
 {
@@ -35,7 +35,7 @@ float voltage=0;
     // PRINTF("hello %f\n",voltage);
      //PRINTF("%f\n",a);
      DAC_register_values[i]= (int) ((SE_12BIT*voltage/VREF_BRD)-1);
-     PRINTF("%d\n",DAC_register_values[i]);
+    // PRINTF("%d\n",DAC_register_values[i]);
 
      step=step+0.1;
 	}
