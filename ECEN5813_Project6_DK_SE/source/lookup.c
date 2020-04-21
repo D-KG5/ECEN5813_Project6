@@ -40,3 +40,12 @@ float voltage=0;
      step=step+0.1;
 	}
 }
+
+void dac_Init(void)
+{
+	dac_config_t dacConfigStruct;
+    DAC_GetDefaultConfig(&dacConfigStruct);
+    DAC_Init(DEMO_DAC_BASEADDR, &dacConfigStruct);
+    DAC_Enable(DEMO_DAC_BASEADDR, true); /* Enable output. */
+
+}

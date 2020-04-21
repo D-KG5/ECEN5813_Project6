@@ -65,7 +65,7 @@ int main(void)
     BOARD_InitDebugConsole();
 
     xTaskCreate(task_one, "Hello_task_one", configMINIMAL_STACK_SIZE + 10, NULL, hello_task_PRIORITY, NULL);
-    xTaskCreate(task_two, "Hello_task_two", configMINIMAL_STACK_SIZE + 10, NULL, hello_task_PRIORITY, NULL);
+  //  xTaskCreate(task_two, "Hello_task_two", configMINIMAL_STACK_SIZE + 10, NULL, hello_task_PRIORITY, NULL);
     vTaskStartScheduler();
     for (;;)
         ;
@@ -78,9 +78,9 @@ static void task_one(void *pvParameters)
 {
     for (;;)
     {
-    //	dac_voltagevalue();
+    	dac_voltagevalue();
         PRINTF("Hello world.\r\n");
-      //  vTaskSuspend(NULL);
+        vTaskSuspend(NULL);
     }
 }
 static void task_two(void *pvParameters)

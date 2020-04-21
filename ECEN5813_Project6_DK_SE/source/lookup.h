@@ -8,18 +8,19 @@
 #ifndef LOOKUP_H_
 #define LOOKUP_H_
 
-
+#include "fsl_dac.h"
 
 #define PI 3.141592653589793
 #define VREF_BRD 3.300
 #define SE_12BIT 4096.0
+#define DEMO_DAC_BASEADDR DAC0
 //calculated values using matlab .m file
 //t=0:0.1:5;
 //y=(2+(1*sin(2*pi*(t/5))))
 //Sine wave starts from 2V and amplitude is 1v
 
 void dac_voltagevalue();
-
+void dac_Init(void);
 
 static const double lookup[50]=
 
