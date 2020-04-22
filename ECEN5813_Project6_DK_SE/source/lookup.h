@@ -9,11 +9,21 @@
 #define LOOKUP_H_
 
 #include "fsl_dac.h"
+#include "fsl_adc16.h"
 
+
+//dac
 #define PI 3.141592653589793
 #define VREF_BRD 3.300
 #define SE_12BIT 4096.0
 #define DEMO_DAC_BASEADDR DAC0
+
+//adc
+#define DEMO_ADC16_BASEADDR ADC0
+#define DEMO_ADC16_CHANNEL_GROUP 0U
+#define DEMO_ADC16_USER_CHANNEL 0U /* PTE20, ADC0_SE0 */
+
+
 //calculated values using matlab .m file
 //t=0:0.1:5;
 //y=(2+(1*sin(2*pi*(t/5))))
@@ -21,6 +31,8 @@
 
 void dac_voltagevalue();
 void dac_Init(void);
+void adc_Init(void);
+
 
 static const double lookup[50]=
 
