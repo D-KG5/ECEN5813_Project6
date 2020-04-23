@@ -46,6 +46,7 @@
 
 /* Task priorities. */
 #define hello_task_PRIORITY (configMAX_PRIORITIES - 1)
+#define SW_TIMER_PERIOD_MS (1000 / portTICK_PERIOD_MS)
 /*******************************************************************************
  * Prototypes
  ******************************************************************************/
@@ -57,7 +58,27 @@ static void task_two(void *pvParameters);
 /*!
  * @brief Application entry point.
  */
+
+//timer_callback_dac
+TimerHandle_t  timer_dac_handle= NULL;
+static void timer_callback_dac(TimerHandle_t xTimer);
+int start_dac;
+
+
+
+
+
 int DAC_register_values[50];
+
+
+static void timer_callback_dac(TimerHandle_t xTimer)
+{
+	PRINTF("\nPRINT from CallBack");
+	start_dac=1;
+}
+
+
+
 
 
 int main(void)
@@ -66,9 +87,12 @@ int main(void)
     BOARD_InitPins();
     BOARD_BootClockRUN();
     BOARD_InitDebugConsole();
+    SystemCoreClockUpdate();
     dac_Init();
+
     xTaskCreate(task_one, "Hello_task_one", 500, NULL, hello_task_PRIORITY, NULL);
   //  xTaskCreate(task_two, "Hello_task_two", configMINIMAL_STACK_SIZE + 10, NULL, hello_task_PRIORITY, NULL);
+
     vTaskStartScheduler();
     for (;;)
         ;
@@ -82,12 +106,21 @@ static void task_one(void *pvParameters)
     for (;;)
     {
     	dac_voltagevalue();
-    	for(int i=0;i<50;i++)
+    	timer_dac_handle = xTimerCreate("timer_callback_dac",SW_TIMER_PERIOD_MS,pdTRUE,0,timer_callback_dac);
+    	xTimerStart(timer_dac_handle, 0);
+
+
+    	if(start_dac==1)
     	{
-    	DAC_SetBufferValue(DEMO_DAC_BASEADDR, 0U, DAC_register_values[i]);
+    	 for(int i=0;i<50;i++)
+    	 	 {
+    		 	 DAC_SetBufferValue(DEMO_DAC_BASEADDR, 0U, DAC_register_values[i]);
+    	 	 }
+
+    	 PRINTF("Hello world.\r\n");
+    	 start_dac=0;
     	}
-        PRINTF("Hello world.\r\n");
-        vTaskSuspend(NULL);
+     //   vTaskSuspend(NULL);
     }
 }
 static void task_two(void *pvParameters)
