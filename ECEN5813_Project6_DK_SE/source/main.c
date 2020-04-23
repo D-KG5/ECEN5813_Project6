@@ -73,8 +73,10 @@ int DAC_register_values[50];
 
 static void timer_callback_dac(TimerHandle_t xTimer)
 {
-	PRINTF("\nPRINT from CallBack");
+   // taskENTER_CRITICAL();
+	PRINTF("PRINT from CallBack\n\r");
 	start_dac=1;
+	//taskEXIT_CRITICAL();
 }
 
 
@@ -90,10 +92,22 @@ int main(void)
     SystemCoreClockUpdate();
     dac_Init();
 
-    xTaskCreate(task_one, "Hello_task_one", 500, NULL, hello_task_PRIORITY, NULL);
-  //  xTaskCreate(task_two, "Hello_task_two", configMINIMAL_STACK_SIZE + 10, NULL, hello_task_PRIORITY, NULL);
+    xTaskCreate(task_one, "Hello_task_one", 500, NULL, 1, NULL);
 
-    vTaskStartScheduler();
+   xTaskCreate(task_two, "Hello_task_two", configMINIMAL_STACK_SIZE + 10, NULL, 1, NULL);
+
+	timer_dac_handle = xTimerCreate("timer_callback_dac",pdMS_TO_TICKS(100),pdTRUE,NULL,timer_callback_dac);
+
+	if(timer_dac_handle== NULL)
+	{
+		PRINTF("Fails");
+	}
+	else
+	{
+	xTimerStart(timer_dac_handle, 0);
+	vTaskStartScheduler();
+	}
+
     for (;;)
         ;
 }
@@ -106,8 +120,7 @@ static void task_one(void *pvParameters)
     for (;;)
     {
     	dac_voltagevalue();
-    	timer_dac_handle = xTimerCreate("timer_callback_dac",SW_TIMER_PERIOD_MS,pdTRUE,0,timer_callback_dac);
-    	xTimerStart(timer_dac_handle, 0);
+
 
 
     	if(start_dac==1)
@@ -116,17 +129,26 @@ static void task_one(void *pvParameters)
     	 	 {
     		 	 DAC_SetBufferValue(DEMO_DAC_BASEADDR, 0U, DAC_register_values[i]);
     	 	 }
-
+    	 taskENTER_CRITICAL();
     	 PRINTF("Hello world.\r\n");
+    	 taskEXIT_CRITICAL();
     	 start_dac=0;
+
     	}
+
      //   vTaskSuspend(NULL);
     }
+
 }
 static void task_two(void *pvParameters)
 {
 	while(1)
 	{
+	   taskENTER_CRITICAL();
        PRINTF("Hello Task two\n\r");
+       taskEXIT_CRITICAL();
+       vTaskDelay(100);
+       //vTaskDelayUntil(pxPreviousWakeTime, xTimeIncrement)
+     //  taskYIELD();
 	}
 }
