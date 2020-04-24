@@ -25,10 +25,10 @@ extern int DAC_register_values[50];
 
 
 ////variables
-volatile bool g_Adc16ConversionDoneFlag = false;
-volatile uint32_t g_Adc16ConversionValue = 0;
-adc16_config_t adc16ConfigStruct;
-adc16_channel_config_t g_adc16ChannelConfigStruct;
+extern volatile bool g_Adc16ConversionDoneFlag;
+extern volatile uint32_t g_Adc16ConversionValue;
+extern adc16_config_t adc16ConfigStruct;
+extern adc16_channel_config_t g_adc16ChannelConfigStruct;
 
 
 

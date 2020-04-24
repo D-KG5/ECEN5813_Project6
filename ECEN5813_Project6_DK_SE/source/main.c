@@ -57,6 +57,7 @@
  * Prototypes
  ******************************************************************************/
 static void task_one(void *pvParameters);
+static void task_one_two(void *pvParameters);
 static void task_two(void *pvParameters);
 static void handler_task(void *pvParameters);
 /*******************************************************************************
@@ -100,8 +101,10 @@ static void timer_callback_adc(TimerHandle_t xTimer);
 int start_adc;
 
 
-
-
+volatile bool g_Adc16ConversionDoneFlag = false;
+volatile uint32_t g_Adc16ConversionValue = 0;
+adc16_config_t adc16ConfigStruct;
+adc16_channel_config_t g_adc16ChannelConfigStruct;
 
 
 
@@ -140,6 +143,9 @@ static void timer_callback_adc(TimerHandle_t xTimer)
     taskENTER_CRITICAL();
 //	PRINTF("PRINT from CallBack\n\r");
 	start_adc=1;
+    g_Adc16ConversionDoneFlag = true;
+    /* Read conversion result to clear the conversion completed flag. */
+ //   g_Adc16ConversionValue = ADC16_GetChannelConversionValue(DEMO_ADC16_BASEADDR, DEMO_ADC16_CHANNEL_GROUP);
 	timestamp_counter_n++;
 	if(timestamp_counter_n == 10){
 		timestamp_counter_n = 0;
@@ -200,6 +206,7 @@ int main(void)
 	{
 	    xTaskCreate(handler_task, "Handler", 1000, NULL, 3, NULL);
 	    xTaskCreate(task_one, "Hello_task_one", 500, NULL, 1, NULL);
+	 //   xTaskCreate(task_one_two, "Hello_task_one_two", 500, NULL, 1, NULL);
 	    xTaskCreate(task_two, "Hello_task_two", configMINIMAL_STACK_SIZE + 10, NULL, 1, NULL);
 		xTimerStart(timer_dac_handle, 0);
 		xTimerStart(timer_adc_handle, 0);
@@ -234,10 +241,65 @@ static void task_one(void *pvParameters)
 
     	}
 
+
+//    	}
      //   vTaskSuspend(NULL);
     }
 
 }
+
+
+static void task_one_two(void *pvParameters)
+{
+
+while(1)
+{
+
+	    	if(start_adc==1)
+	    	{
+	            g_Adc16ConversionDoneFlag = false;
+	            ADC16_SetChannelConfig(DEMO_ADC16_BASEADDR, DEMO_ADC16_CHANNEL_GROUP, &g_adc16ChannelConfigStruct);
+
+	            while (!g_Adc16ConversionDoneFlag)
+	            {
+	            }
+	         g_Adc16ConversionValue = ADC16_GetChannelConversionValue(DEMO_ADC16_BASEADDR, DEMO_ADC16_CHANNEL_GROUP);
+	       	 taskENTER_CRITICAL();
+	       	 PRINTF("Doing ADC stuff\r\n");
+	       	 taskEXIT_CRITICAL();
+	         start_adc=0;
+	    	}
+
+
+
+
+
+}
+
+
+
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 // ADC task
 static void task_two(void *pvParameters)
 {
