@@ -33,16 +33,21 @@
 #include "task.h"
 #include "queue.h"
 #include "timers.h"
+#include "semphr.h"
 
 /* Freescale includes. */
 #include "fsl_device_registers.h"
 #include "fsl_debug_console.h"
 #include "board.h"
 #include "lookup.h"
+#include "dma.h"
 #include "pin_mux.h"
+#include "clock_config.h"
 /*******************************************************************************
  * Definitions
  ******************************************************************************/
+#define QUEUE_LENGTH 64
+#define ITEM_SIZE sizeof(int)
 
 /* Task priorities. */
 #define hello_task_PRIORITY (configMAX_PRIORITIES - 1)
@@ -52,6 +57,7 @@
  ******************************************************************************/
 static void task_one(void *pvParameters);
 static void task_two(void *pvParameters);
+static void handler_task(void *pvParameters);
 /*******************************************************************************
  * Code
  ******************************************************************************/
@@ -64,12 +70,75 @@ TimerHandle_t  timer_dac_handle= NULL;
 static void timer_callback_dac(TimerHandle_t xTimer);
 int start_dac;
 
+static StaticQueue_t xADCStaticQueue;
+uint8_t adcQueueStorageArea[QUEUE_LENGTH * ITEM_SIZE];
+QueueHandle_t ADCBuffer;
+static StaticQueue_t xDSPStaticQueue;
+uint8_t dspQueueStorageArea[QUEUE_LENGTH * ITEM_SIZE];
+QueueHandle_t DSPBuffer;
 
+extern SemaphoreHandle_t DMACntSemaphore;
 
-
+extern dma_transfer_config_t transferConfig;
+extern dma_handle_t g_DMA_Handle;
+extern volatile bool g_Transfer_Done;
+uint32_t srcAddr[BUFF_LENGTH] = {0x01, 0x02, 0x03, 0x04};
+uint32_t destAddr[BUFF_LENGTH] = {0x00, 0x00, 0x00, 0x00};
 
 int DAC_register_values[50];
 
+/* configSUPPORT_STATIC_ALLOCATION is set to 1, so the application must provide an
+implementation of vApplicationGetIdleTaskMemory() to provide the memory that is
+used by the Idle task. */
+void vApplicationGetIdleTaskMemory( StaticTask_t **ppxIdleTaskTCBBuffer,
+                                    StackType_t **ppxIdleTaskStackBuffer,
+                                    uint32_t *pulIdleTaskStackSize )
+{
+/* If the buffers to be provided to the Idle task are declared inside this
+function then they must be declared static – otherwise they will be allocated on
+the stack and so not exists after this function exits. */
+static StaticTask_t xIdleTaskTCB;
+static StackType_t uxIdleTaskStack[ configMINIMAL_STACK_SIZE ];
+
+    /* Pass out a pointer to the StaticTask_t structure in which the Idle task’s
+    state will be stored. */
+    *ppxIdleTaskTCBBuffer = &xIdleTaskTCB;
+
+    /* Pass out the array that will be used as the Idle task’s stack. */
+    *ppxIdleTaskStackBuffer = uxIdleTaskStack;
+
+    /* Pass out the size of the array pointed to by *ppxIdleTaskStackBuffer.
+    Note that, as the array is necessarily of type StackType_t,
+    configMINIMAL_STACK_SIZE is specified in words, not bytes. */
+    *pulIdleTaskStackSize = configMINIMAL_STACK_SIZE;
+}
+/*———————————————————–*/
+
+/* configSUPPORT_STATIC_ALLOCATION and configUSE_TIMERS are both set to 1, so the
+application must provide an implementation of vApplicationGetTimerTaskMemory()
+to provide the memory that is used by the Timer service task. */
+void vApplicationGetTimerTaskMemory( StaticTask_t **ppxTimerTaskTCBBuffer,
+                                     StackType_t **ppxTimerTaskStackBuffer,
+                                     uint32_t *pulTimerTaskStackSize )
+{
+/* If the buffers to be provided to the Timer task are declared inside this
+function then they must be declared static – otherwise they will be allocated on
+the stack and so not exists after this function exits. */
+static StaticTask_t xTimerTaskTCB;
+static StackType_t uxTimerTaskStack[ configTIMER_TASK_STACK_DEPTH ];
+
+    /* Pass out a pointer to the StaticTask_t structure in which the Timer
+    task’s state will be stored. */
+    *ppxTimerTaskTCBBuffer = &xTimerTaskTCB;
+
+    /* Pass out the array that will be used as the Timer task’s stack. */
+    *ppxTimerTaskStackBuffer = uxTimerTaskStack;
+
+    /* Pass out the size of the array pointed to by *ppxTimerTaskStackBuffer.
+    Note that, as the array is necessarily of type StackType_t,
+    configTIMER_TASK_STACK_DEPTH is specified in words, not bytes. */
+    *pulTimerTaskStackSize = configTIMER_TASK_STACK_DEPTH;
+}
 
 static void timer_callback_dac(TimerHandle_t xTimer)
 {
@@ -81,8 +150,6 @@ static void timer_callback_dac(TimerHandle_t xTimer)
 
 
 
-
-
 int main(void)
 {
     /* Init board hardware. */
@@ -91,10 +158,21 @@ int main(void)
     BOARD_InitDebugConsole();
     SystemCoreClockUpdate();
     dac_Init();
+    dma_Init();
 
-    xTaskCreate(task_one, "Hello_task_one", 500, NULL, 1, NULL);
+    ADCBuffer = xQueueCreateStatic(QUEUE_LENGTH, ITEM_SIZE, adcQueueStorageArea, &xADCStaticQueue);
+    if(ADCBuffer == NULL){
+    	PRINTF("FAIL\n");
+    }
+    DSPBuffer = xQueueCreateStatic(QUEUE_LENGTH, ITEM_SIZE, dspQueueStorageArea, &xDSPStaticQueue);
+    if(DSPBuffer == NULL){
+    	PRINTF("FAIL\n");
+    }
 
-   xTaskCreate(task_two, "Hello_task_two", configMINIMAL_STACK_SIZE + 10, NULL, 1, NULL);
+    DMACntSemaphore = xSemaphoreCreateCounting(10, 0);
+    if(DMACntSemaphore == NULL){
+    	PRINTF("FAIL\n");
+    }
 
 	timer_dac_handle = xTimerCreate("timer_callback_dac",pdMS_TO_TICKS(100),pdTRUE,NULL,timer_callback_dac);
 
@@ -104,8 +182,12 @@ int main(void)
 	}
 	else
 	{
+	    xTaskCreate(handler_task, "Handler", 1000, NULL, 3, NULL);
+	    xTaskCreate(task_one, "Hello_task_one", 500, NULL, 1, NULL);
+	    xTaskCreate(task_two, "Hello_task_two", configMINIMAL_STACK_SIZE + 10, NULL, 1, NULL);
 	xTimerStart(timer_dac_handle, 0);
 	vTaskStartScheduler();
+	//init DMA with interrupt
 	}
 
     for (;;)
@@ -113,7 +195,7 @@ int main(void)
 }
 
 /*!
- * @brief Task responsible for printing of "Hello world." message.
+ * @brief Task responsible for DAC.
  */
 static void task_one(void *pvParameters)
 {
@@ -140,15 +222,53 @@ static void task_one(void *pvParameters)
     }
 
 }
+// ADC task
 static void task_two(void *pvParameters)
 {
+	BaseType_t ADCbufstatus;
+//	int valtosend = 4567;
 	while(1)
 	{
-	   taskENTER_CRITICAL();
-       PRINTF("Hello Task two\n\r");
+		taskENTER_CRITICAL();
+       PRINTF("Hello Task two\r\n");
        taskEXIT_CRITICAL();
+
        vTaskDelay(100);
        //vTaskDelayUntil(pxPreviousWakeTime, xTimeIncrement)
      //  taskYIELD();
+       // send to ADCBuffer
+//       ADCbufstatus = xQueueSendToBack(ADCBuffer, &valtosend, 0);
+       DMA_SubmitTransfer(&g_DMA_Handle, &transferConfig, kDMA_EnableInterrupt);
+       DMA_StartTransfer(&g_DMA_Handle);
+       if(ADCbufstatus != pdPASS){
+    	   // buffer full, initiate DMA transfer
+//    	    DMA_StartTransfer(&g_DMA_Handle);
+       }
+	}
+}
+
+//
+static void handler_task(void *pvParameters){
+	int val[ITEM_SIZE + 1];
+	int counter = 0;
+	BaseType_t DSPbufstatus;
+	for(;;){
+		xSemaphoreTake(DMACntSemaphore, portMAX_DELAY);
+		taskENTER_CRITICAL();
+		PRINTF("In handler task\r\n");
+		for (int i = 0; i < BUFF_LENGTH; i++)
+		{
+			PRINTF("%d\t", destAddr[i]);
+		}
+		taskEXIT_CRITICAL();
+		// get data from DSP buffer
+		DSPbufstatus = xQueueReceive(DSPBuffer, val, portMAX_DELAY);
+		if(DSPbufstatus == pdPASS){
+			PRINTF("DSP %d: %d\r\n", counter, val);
+			counter++;
+		}else{
+			PRINTF("Got nothing in DSP\r\n");
+		}
+		// do processing and report 5 times, then end program
 	}
 }
