@@ -20,6 +20,9 @@
 #define DMA_CHANNEL 0
 #define DMA_SOURCE 63
 
+#define QUEUE_LENGTH 10
+#define ITEM_SIZE sizeof(int)
+
 void dma_Init(void);
 void DMA_callback(dma_handle_t *handle, void *param);
 

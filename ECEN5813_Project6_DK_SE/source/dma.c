@@ -17,12 +17,14 @@
 #include "dma.h"
 
 SemaphoreHandle_t DMACntSemaphore;
-volatile bool g_Transfer_Done = false;
 dma_transfer_config_t transferConfig;
 dma_handle_t g_DMA_Handle;
 
 extern QueueHandle_t ADCBuffer;
 extern QueueHandle_t DSPBuffer;
+
+extern uint8_t adcQueueStorageArea[QUEUE_LENGTH * ITEM_SIZE];
+extern uint8_t dspQueueStorageArea[QUEUE_LENGTH * ITEM_SIZE];
 extern uint32_t srcAddr[BUFF_LENGTH];
 extern uint32_t destAddr[BUFF_LENGTH];
 
@@ -30,7 +32,6 @@ void DMA_callback(dma_handle_t *handle, void *param){
 	BaseType_t xHiPriorityTaskWoken;
 
 	xHiPriorityTaskWoken = pdFALSE;
-	g_Transfer_Done = true;
 	xSemaphoreGiveFromISR(DMACntSemaphore, &xHiPriorityTaskWoken);
 
 	portYIELD_FROM_ISR(xHiPriorityTaskWoken);
@@ -44,6 +45,6 @@ void dma_Init(void){
     DMA_Init(DMA0);
     DMA_CreateHandle(&g_DMA_Handle, DMA0, DMA_CHANNEL);
     DMA_SetCallback(&g_DMA_Handle, DMA_callback, NULL);
-	DMA_PrepareTransfer(&transferConfig, srcAddr, sizeof(srcAddr[0]), destAddr, sizeof(destAddr[0]), sizeof(srcAddr),
-	                        kDMA_MemoryToMemory);
+	DMA_PrepareTransfer(&transferConfig, adcQueueStorageArea, sizeof(adcQueueStorageArea[0]), dspQueueStorageArea,
+			sizeof(dspQueueStorageArea[0]), sizeof(adcQueueStorageArea), kDMA_MemoryToMemory);
 }

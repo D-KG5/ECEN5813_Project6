@@ -46,8 +46,7 @@
 /*******************************************************************************
  * Definitions
  ******************************************************************************/
-#define QUEUE_LENGTH 64
-#define ITEM_SIZE sizeof(int)
+
 
 /* Task priorities. */
 #define hello_task_PRIORITY (configMAX_PRIORITIES - 1)
@@ -81,64 +80,11 @@ extern SemaphoreHandle_t DMACntSemaphore;
 
 extern dma_transfer_config_t transferConfig;
 extern dma_handle_t g_DMA_Handle;
-extern volatile bool g_Transfer_Done;
+
 uint32_t srcAddr[BUFF_LENGTH] = {0x01, 0x02, 0x03, 0x04};
 uint32_t destAddr[BUFF_LENGTH] = {0x00, 0x00, 0x00, 0x00};
 
 int DAC_register_values[50];
-
-/* configSUPPORT_STATIC_ALLOCATION is set to 1, so the application must provide an
-implementation of vApplicationGetIdleTaskMemory() to provide the memory that is
-used by the Idle task. */
-void vApplicationGetIdleTaskMemory( StaticTask_t **ppxIdleTaskTCBBuffer,
-                                    StackType_t **ppxIdleTaskStackBuffer,
-                                    uint32_t *pulIdleTaskStackSize )
-{
-/* If the buffers to be provided to the Idle task are declared inside this
-function then they must be declared static – otherwise they will be allocated on
-the stack and so not exists after this function exits. */
-static StaticTask_t xIdleTaskTCB;
-static StackType_t uxIdleTaskStack[ configMINIMAL_STACK_SIZE ];
-
-    /* Pass out a pointer to the StaticTask_t structure in which the Idle task’s
-    state will be stored. */
-    *ppxIdleTaskTCBBuffer = &xIdleTaskTCB;
-
-    /* Pass out the array that will be used as the Idle task’s stack. */
-    *ppxIdleTaskStackBuffer = uxIdleTaskStack;
-
-    /* Pass out the size of the array pointed to by *ppxIdleTaskStackBuffer.
-    Note that, as the array is necessarily of type StackType_t,
-    configMINIMAL_STACK_SIZE is specified in words, not bytes. */
-    *pulIdleTaskStackSize = configMINIMAL_STACK_SIZE;
-}
-/*———————————————————–*/
-
-/* configSUPPORT_STATIC_ALLOCATION and configUSE_TIMERS are both set to 1, so the
-application must provide an implementation of vApplicationGetTimerTaskMemory()
-to provide the memory that is used by the Timer service task. */
-void vApplicationGetTimerTaskMemory( StaticTask_t **ppxTimerTaskTCBBuffer,
-                                     StackType_t **ppxTimerTaskStackBuffer,
-                                     uint32_t *pulTimerTaskStackSize )
-{
-/* If the buffers to be provided to the Timer task are declared inside this
-function then they must be declared static – otherwise they will be allocated on
-the stack and so not exists after this function exits. */
-static StaticTask_t xTimerTaskTCB;
-static StackType_t uxTimerTaskStack[ configTIMER_TASK_STACK_DEPTH ];
-
-    /* Pass out a pointer to the StaticTask_t structure in which the Timer
-    task’s state will be stored. */
-    *ppxTimerTaskTCBBuffer = &xTimerTaskTCB;
-
-    /* Pass out the array that will be used as the Timer task’s stack. */
-    *ppxTimerTaskStackBuffer = uxTimerTaskStack;
-
-    /* Pass out the size of the array pointed to by *ppxTimerTaskStackBuffer.
-    Note that, as the array is necessarily of type StackType_t,
-    configTIMER_TASK_STACK_DEPTH is specified in words, not bytes. */
-    *pulTimerTaskStackSize = configTIMER_TASK_STACK_DEPTH;
-}
 
 static void timer_callback_dac(TimerHandle_t xTimer)
 {
@@ -147,8 +93,6 @@ static void timer_callback_dac(TimerHandle_t xTimer)
 	start_dac=1;
 	//taskEXIT_CRITICAL();
 }
-
-
 
 int main(void)
 {
@@ -226,7 +170,7 @@ static void task_one(void *pvParameters)
 static void task_two(void *pvParameters)
 {
 	BaseType_t ADCbufstatus;
-//	int valtosend = 4567;
+	int valtosend = 4567;
 	while(1)
 	{
 		taskENTER_CRITICAL();
@@ -237,38 +181,92 @@ static void task_two(void *pvParameters)
        //vTaskDelayUntil(pxPreviousWakeTime, xTimeIncrement)
      //  taskYIELD();
        // send to ADCBuffer
-//       ADCbufstatus = xQueueSendToBack(ADCBuffer, &valtosend, 0);
-       DMA_SubmitTransfer(&g_DMA_Handle, &transferConfig, kDMA_EnableInterrupt);
-       DMA_StartTransfer(&g_DMA_Handle);
+       ADCbufstatus = xQueueSendToBack(ADCBuffer, &valtosend, 0);
        if(ADCbufstatus != pdPASS){
     	   // buffer full, initiate DMA transfer
-//    	    DMA_StartTransfer(&g_DMA_Handle);
+           DMA_SubmitTransfer(&g_DMA_Handle, &transferConfig, kDMA_EnableInterrupt);
+           DMA_StartTransfer(&g_DMA_Handle);
        }
 	}
 }
 
 //
 static void handler_task(void *pvParameters){
-	int val[ITEM_SIZE + 1];
+	int val[4 +1];
 	int counter = 0;
 	BaseType_t DSPbufstatus;
 	for(;;){
 		xSemaphoreTake(DMACntSemaphore, portMAX_DELAY);
 		taskENTER_CRITICAL();
 		PRINTF("In handler task\r\n");
-		for (int i = 0; i < BUFF_LENGTH; i++)
-		{
-			PRINTF("%d\t", destAddr[i]);
-		}
 		taskEXIT_CRITICAL();
+		if(uxQueueMessagesWaiting(DSPBuffer) != 0){
+			PRINTF("Queue should have been empty!\r\n");
+		}
 		// get data from DSP buffer
-		DSPbufstatus = xQueueReceive(DSPBuffer, val, portMAX_DELAY);
+		DSPbufstatus = xQueueReceive(DSPBuffer, val,  pdMS_TO_TICKS(100));
+		taskENTER_CRITICAL();
 		if(DSPbufstatus == pdPASS){
 			PRINTF("DSP %d: %d\r\n", counter, val);
 			counter++;
 		}else{
 			PRINTF("Got nothing in DSP\r\n");
 		}
+		taskEXIT_CRITICAL();
 		// do processing and report 5 times, then end program
 	}
+}
+
+
+/* configSUPPORT_STATIC_ALLOCATION is set to 1, so the application must provide an
+implementation of vApplicationGetIdleTaskMemory() to provide the memory that is
+used by the Idle task. */
+void vApplicationGetIdleTaskMemory( StaticTask_t **ppxIdleTaskTCBBuffer,
+                                    StackType_t **ppxIdleTaskStackBuffer,
+                                    uint32_t *pulIdleTaskStackSize )
+{
+/* If the buffers to be provided to the Idle task are declared inside this
+function then they must be declared static – otherwise they will be allocated on
+the stack and so not exists after this function exits. */
+static StaticTask_t xIdleTaskTCB;
+static StackType_t uxIdleTaskStack[ configMINIMAL_STACK_SIZE ];
+
+    /* Pass out a pointer to the StaticTask_t structure in which the Idle task’s
+    state will be stored. */
+    *ppxIdleTaskTCBBuffer = &xIdleTaskTCB;
+
+    /* Pass out the array that will be used as the Idle task’s stack. */
+    *ppxIdleTaskStackBuffer = uxIdleTaskStack;
+
+    /* Pass out the size of the array pointed to by *ppxIdleTaskStackBuffer.
+    Note that, as the array is necessarily of type StackType_t,
+    configMINIMAL_STACK_SIZE is specified in words, not bytes. */
+    *pulIdleTaskStackSize = configMINIMAL_STACK_SIZE;
+}
+/*———————————————————–*/
+
+/* configSUPPORT_STATIC_ALLOCATION and configUSE_TIMERS are both set to 1, so the
+application must provide an implementation of vApplicationGetTimerTaskMemory()
+to provide the memory that is used by the Timer service task. */
+void vApplicationGetTimerTaskMemory( StaticTask_t **ppxTimerTaskTCBBuffer,
+                                     StackType_t **ppxTimerTaskStackBuffer,
+                                     uint32_t *pulTimerTaskStackSize )
+{
+/* If the buffers to be provided to the Timer task are declared inside this
+function then they must be declared static – otherwise they will be allocated on
+the stack and so not exists after this function exits. */
+static StaticTask_t xTimerTaskTCB;
+static StackType_t uxTimerTaskStack[ configTIMER_TASK_STACK_DEPTH ];
+
+    /* Pass out a pointer to the StaticTask_t structure in which the Timer
+    task’s state will be stored. */
+    *ppxTimerTaskTCBBuffer = &xTimerTaskTCB;
+
+    /* Pass out the array that will be used as the Timer task’s stack. */
+    *ppxTimerTaskStackBuffer = uxTimerTaskStack;
+
+    /* Pass out the size of the array pointed to by *ppxTimerTaskStackBuffer.
+    Note that, as the array is necessarily of type StackType_t,
+    configTIMER_TASK_STACK_DEPTH is specified in words, not bytes. */
+    *pulTimerTaskStackSize = configTIMER_TASK_STACK_DEPTH;
 }
