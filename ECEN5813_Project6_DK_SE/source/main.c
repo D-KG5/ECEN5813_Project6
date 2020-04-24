@@ -70,6 +70,7 @@ static void handler_task(void *pvParameters);
 TimerHandle_t  timer_dac_handle= NULL;
 static void timer_callback_dac(TimerHandle_t xTimer);
 int start_dac;
+
 // timestamp counter vars for tenths, seconds, minutes, hours
 uint8_t timestamp_counter_n = 0;
 uint8_t timestamp_counter_s = 0;
@@ -89,6 +90,26 @@ extern dma_handle_t g_DMA_Handle;
 
 uint32_t srcAddr[BUFF_LENGTH] = {0x01, 0x02, 0x03, 0x04};
 uint8_t destAddr[QUEUE_LENGTH * ITEM_SIZE];
+
+
+
+
+//adc timer callback
+TimerHandle_t  timer_adc_handle= NULL;
+static void timer_callback_adc(TimerHandle_t xTimer);
+int start_adc;
+
+
+
+
+
+
+
+
+
+
+
+
 
 int DAC_register_values[50];
 
@@ -112,6 +133,35 @@ static void timer_callback_dac(TimerHandle_t xTimer)
 	}
 	taskEXIT_CRITICAL();
 }
+
+static void timer_callback_adc(TimerHandle_t xTimer)
+{
+
+    taskENTER_CRITICAL();
+//	PRINTF("PRINT from CallBack\n\r");
+	start_adc=1;
+	timestamp_counter_n++;
+	if(timestamp_counter_n == 10){
+		timestamp_counter_n = 0;
+		timestamp_counter_s++;
+	}
+	if(timestamp_counter_s == 60){
+		timestamp_counter_s = 0;
+		timestamp_counter_m++;
+	}
+	if(timestamp_counter_m == 60){
+		timestamp_counter_m = 0;
+		timestamp_counter_h++;
+	}
+	taskEXIT_CRITICAL();
+
+
+
+}
+
+
+
+
 
 int main(void)
 {
@@ -140,17 +190,19 @@ int main(void)
     }
 
 	timer_dac_handle = xTimerCreate("timer_callback_dac",pdMS_TO_TICKS(100),pdTRUE,NULL,timer_callback_dac);
-
-	if(timer_dac_handle== NULL)
+	timer_adc_handle = xTimerCreate("timer_callback_adc",pdMS_TO_TICKS(100),pdTRUE,NULL,timer_callback_adc);
+	if(timer_dac_handle== NULL && timer_adc_handle==NULL)
 	{
 		PRINTF("Fails");
 	}
+
 	else
 	{
 	    xTaskCreate(handler_task, "Handler", 1000, NULL, 3, NULL);
 	    xTaskCreate(task_one, "Hello_task_one", 500, NULL, 1, NULL);
 	    xTaskCreate(task_two, "Hello_task_two", configMINIMAL_STACK_SIZE + 10, NULL, 1, NULL);
 		xTimerStart(timer_dac_handle, 0);
+		xTimerStart(timer_adc_handle, 0);
 		vTaskStartScheduler();
 	}
 
