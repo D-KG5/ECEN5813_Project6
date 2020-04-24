@@ -43,6 +43,8 @@
 #include "dma.h"
 #include "pin_mux.h"
 #include "clock_config.h"
+#include "global_defines.h"
+#include "circ_buffer.h"
 /*******************************************************************************
  * Definitions
  ******************************************************************************/
@@ -68,30 +70,47 @@ static void handler_task(void *pvParameters);
 TimerHandle_t  timer_dac_handle= NULL;
 static void timer_callback_dac(TimerHandle_t xTimer);
 int start_dac;
+// timestamp counter vars for tenths, seconds, minutes, hours
+uint8_t timestamp_counter_n = 0;
+uint8_t timestamp_counter_s = 0;
+uint8_t timestamp_counter_m = 0;
+uint8_t timestamp_counter_h = 0;
 
 static StaticQueue_t xADCStaticQueue;
 uint8_t adcQueueStorageArea[QUEUE_LENGTH * ITEM_SIZE];
 QueueHandle_t ADCBuffer;
-static StaticQueue_t xDSPStaticQueue;
-uint8_t dspQueueStorageArea[QUEUE_LENGTH * ITEM_SIZE];
-QueueHandle_t DSPBuffer;
+
+circ_buf_t * DSPBuffer;
 
 extern SemaphoreHandle_t DMACntSemaphore;
 
-extern dma_transfer_config_t transferConfig;
+dma_transfer_config_t transferConfig;
 extern dma_handle_t g_DMA_Handle;
 
 uint32_t srcAddr[BUFF_LENGTH] = {0x01, 0x02, 0x03, 0x04};
-uint32_t destAddr[BUFF_LENGTH] = {0x00, 0x00, 0x00, 0x00};
+uint8_t destAddr[QUEUE_LENGTH * ITEM_SIZE];
 
 int DAC_register_values[50];
 
 static void timer_callback_dac(TimerHandle_t xTimer)
 {
-   // taskENTER_CRITICAL();
-	PRINTF("PRINT from CallBack\n\r");
+    taskENTER_CRITICAL();
+//	PRINTF("PRINT from CallBack\n\r");
 	start_dac=1;
-	//taskEXIT_CRITICAL();
+	timestamp_counter_n++;
+	if(timestamp_counter_n == 10){
+		timestamp_counter_n = 0;
+		timestamp_counter_s++;
+	}
+	if(timestamp_counter_s == 60){
+		timestamp_counter_s = 0;
+		timestamp_counter_m++;
+	}
+	if(timestamp_counter_m == 60){
+		timestamp_counter_m = 0;
+		timestamp_counter_h++;
+	}
+	taskEXIT_CRITICAL();
 }
 
 int main(void)
@@ -101,19 +120,21 @@ int main(void)
     BOARD_BootClockRUN();
     BOARD_InitDebugConsole();
     SystemCoreClockUpdate();
+    Log_enable();
+    Log_level(LOG_DEBUG);
     dac_Init();
     dma_Init();
+
+    DSPBuffer = init_buf(QUEUE_LENGTH * ITEM_SIZE);
+	DSPBuffer->size = QUEUE_LENGTH * ITEM_SIZE;
+	DSPBuffer->tail = QUEUE_LENGTH * ITEM_SIZE;
 
     ADCBuffer = xQueueCreateStatic(QUEUE_LENGTH, ITEM_SIZE, adcQueueStorageArea, &xADCStaticQueue);
     if(ADCBuffer == NULL){
     	PRINTF("FAIL\n");
     }
-    DSPBuffer = xQueueCreateStatic(QUEUE_LENGTH, ITEM_SIZE, dspQueueStorageArea, &xDSPStaticQueue);
-    if(DSPBuffer == NULL){
-    	PRINTF("FAIL\n");
-    }
 
-    DMACntSemaphore = xSemaphoreCreateCounting(10, 0);
+    DMACntSemaphore = xSemaphoreCreateCounting(40, 0);
     if(DMACntSemaphore == NULL){
     	PRINTF("FAIL\n");
     }
@@ -129,9 +150,8 @@ int main(void)
 	    xTaskCreate(handler_task, "Handler", 1000, NULL, 3, NULL);
 	    xTaskCreate(task_one, "Hello_task_one", 500, NULL, 1, NULL);
 	    xTaskCreate(task_two, "Hello_task_two", configMINIMAL_STACK_SIZE + 10, NULL, 1, NULL);
-	xTimerStart(timer_dac_handle, 0);
-	vTaskStartScheduler();
-	//init DMA with interrupt
+		xTimerStart(timer_dac_handle, 0);
+		vTaskStartScheduler();
 	}
 
     for (;;)
@@ -156,7 +176,7 @@ static void task_one(void *pvParameters)
     		 	 DAC_SetBufferValue(DEMO_DAC_BASEADDR, 0U, DAC_register_values[i]);
     	 	 }
     	 taskENTER_CRITICAL();
-    	 PRINTF("Hello world.\r\n");
+    	 PRINTF("Doing DAC stuff\r\n");
     	 taskEXIT_CRITICAL();
     	 start_dac=0;
 
@@ -170,49 +190,53 @@ static void task_one(void *pvParameters)
 static void task_two(void *pvParameters)
 {
 	BaseType_t ADCbufstatus;
-	int valtosend = 4567;
-	while(1)
-	{
-		taskENTER_CRITICAL();
-       PRINTF("Hello Task two\r\n");
-       taskEXIT_CRITICAL();
-
-       vTaskDelay(100);
-       //vTaskDelayUntil(pxPreviousWakeTime, xTimeIncrement)
-     //  taskYIELD();
-       // send to ADCBuffer
-       ADCbufstatus = xQueueSendToBack(ADCBuffer, &valtosend, 0);
-       if(ADCbufstatus != pdPASS){
-    	   // buffer full, initiate DMA transfer
-           DMA_SubmitTransfer(&g_DMA_Handle, &transferConfig, kDMA_EnableInterrupt);
-           DMA_StartTransfer(&g_DMA_Handle);
-       }
+	int valtosend = 4567;	// grab ADC value
+	for(;;){
+//		PRINTF("Hello Task two\r\n");
+//		Log_string("Hello Task two\r\n", MAIN, LOG_DEBUG);
+		vTaskDelay(100);
+		// send to ADCBuffer
+		ADCbufstatus = xQueueSendToBack(ADCBuffer, &valtosend, 0);
+		if(ADCbufstatus != pdPASS){
+			// buffer full, initiate DMA transfer
+			taskENTER_CRITICAL();
+			DMA_PrepareTransfer(&transferConfig, adcQueueStorageArea, sizeof(adcQueueStorageArea[0]), DSPBuffer->buffer,
+					sizeof(DSPBuffer->buffer[0]), sizeof(adcQueueStorageArea), kDMA_MemoryToMemory);
+			DMA_SubmitTransfer(&g_DMA_Handle, &transferConfig, kDMA_EnableInterrupt);
+			DMA_StartTransfer(&g_DMA_Handle);
+			Log_string("Started DMA Transfer\r\n", MAIN, LOG_DEBUG);
+			taskEXIT_CRITICAL();
+		}
 	}
 }
 
 //
 static void handler_task(void *pvParameters){
-	int val[4 +1];
-	int counter = 0;
-	BaseType_t DSPbufstatus;
+	uint8_t val[QUEUE_LENGTH * ITEM_SIZE] = {0};
+	int counter = 1;
 	for(;;){
 		xSemaphoreTake(DMACntSemaphore, portMAX_DELAY);
 		taskENTER_CRITICAL();
-		PRINTF("In handler task\r\n");
+//		PRINTF("In handler task\r\n");
+		Log_string("Finished DMA Transfer\r\n", MAIN, LOG_DEBUG);
+		xQueueReset(ADCBuffer);
 		taskEXIT_CRITICAL();
-		if(uxQueueMessagesWaiting(DSPBuffer) != 0){
-			PRINTF("Queue should have been empty!\r\n");
-		}
 		// get data from DSP buffer
-		DSPbufstatus = xQueueReceive(DSPBuffer, val,  pdMS_TO_TICKS(100));
 		taskENTER_CRITICAL();
-		if(DSPbufstatus == pdPASS){
-			PRINTF("DSP %d: %d\r\n", counter, val);
-			counter++;
-		}else{
-			PRINTF("Got nothing in DSP\r\n");
+		for(int i = 0; i < (QUEUE_LENGTH * ITEM_SIZE); i++){
+			val[i] = remove_item(DSPBuffer);
+			PRINTF("Run: %d DSP %d: %u\r\n", counter, i, val[i]);
 		}
+			counter++;
 		taskEXIT_CRITICAL();
+		if(counter < 6){
+			taskYIELD();
+		}else{
+			PRINTF("STOPPED\r\n");
+			taskENTER_CRITICAL();
+			for(;;);
+			taskEXIT_CRITICAL();
+		}
 		// do processing and report 5 times, then end program
 	}
 }

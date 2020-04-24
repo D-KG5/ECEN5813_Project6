@@ -46,11 +46,11 @@ char * log_str;
 // returns formatted timestamp string HH:MM:SS.n
 char * Log_timestamp(void){
 #if LOGGING
-	uint32_t masking_state;
-	masking_state = __get_PRIMASK();
-	START_CRITICAL();
+//	uint32_t masking_state;
+//	masking_state = __get_PRIMASK();
+//	START_CRITICAL();
 	snprintf(timestamp, 11, "%02d:%02d:%02d.%d", timestamp_counter_h, timestamp_counter_m, timestamp_counter_s, timestamp_counter_n);
-	END_CRITICAL(masking_state);
+//	END_CRITICAL(masking_state);
 #endif
 	return timestamp;
 }
@@ -62,7 +62,6 @@ void Log_enable(void){
 	enabled = true;
 	// malloc timestamp and log_str strings
 	timestamp = malloc(sizeof(char) * 11);
-	log_str = malloc(sizeof(char) * 128);
 #endif
 }
 
@@ -72,7 +71,6 @@ void Log_disable(void){
 	// ignore any log messages until re-enabled
 	enabled = false;
 	free(timestamp);
-	free(log_str);
 #endif
 }
 
@@ -133,24 +131,15 @@ int Log_data(uint8_t * seq, uint8_t len, func_names_t func, log_level_t level){
 }
 
 // display a string. uint8_t console determines if it's displayed on the semihost console (1) or in the UART serial console (0)
-int Log_string(char * string, func_names_t func, log_level_t level, uint8_t console){
+int Log_string(char * string, func_names_t func, log_level_t level){
 	log_status = LOG_FAILED;
 #if LOGGING
 	if(enabled){
 		if(log_level >= level){
-			if(console){	// if console is 1 then use console, otherwise use UART
-				int ret = PRINTF("%s: %s %s %s", Log_timestamp(), log_levels[level], func_names[func], string);
-				if(ret >= 0){
-					log_status = LOG_SUCCESS;
-				}
-			}else{
-#if USE_UART_INTERRUPTS
-				sprintf(log_str, "%s: %s %s %s\r\n", Log_timestamp(), log_levels[level], func_names[func], string);
-			//	Send_String((uint8_t *)log_str);
-#else
-				sprintf(log_str, "%s: %s %s %s\r\n", Log_timestamp(), log_levels[level], func_names[func], string);
-				Send_String_Poll((uint8_t *)log_str);
-#endif
+			int ret = PRINTF("%02d:%02d:%02d.%d: %s %s %s", timestamp_counter_h, timestamp_counter_m, timestamp_counter_s, timestamp_counter_n,
+					log_levels[level], func_names[func], string);
+			if(ret >= 0){
+				log_status = LOG_SUCCESS;
 			}
 		}
 	}
@@ -159,24 +148,15 @@ int Log_string(char * string, func_names_t func, log_level_t level, uint8_t cons
 }
 
 // display an integer. uint8_t console determines if it's displayed on the semihost console (1) or in the UART serial console (0)
-int Log_integer(int32_t integer, func_names_t func, log_level_t level, uint8_t console){
+int Log_integer(int32_t integer, func_names_t func, log_level_t level){
 	log_status = LOG_FAILED;
 #if LOGGING
 	if(enabled){
 		if(log_level >= level){
-			if(console){	// if console is 1 then use console, otherwise use UART
-				int ret = PRINTF("%s: %s %s %d\r\n", Log_timestamp(), log_levels[level], func_names[func], integer);
-				if(ret >= 0){
-					log_status = LOG_SUCCESS;
-				}
-			}else{
-#if USE_UART_INTERRUPTS
-				sprintf(log_str, "%s: %s %s %d\r\n", Log_timestamp(), log_levels[level], func_names[func], integer);
-			//	Send_String((uint8_t *)log_str);
-#else
-				sprintf(log_str, "%s: %s %s %d\r\n", Log_timestamp(), log_levels[level], func_names[func], integer);
-				Send_String_Poll((uint8_t *)log_str);
-#endif
+			int ret = PRINTF("%02d:%02d:%02d.%d: %s %s %d\r\n", timestamp_counter_h, timestamp_counter_m, timestamp_counter_s, timestamp_counter_n,
+					log_levels[level], func_names[func], integer);
+			if(ret >= 0){
+				log_status = LOG_SUCCESS;
 			}
 		}
 	}
