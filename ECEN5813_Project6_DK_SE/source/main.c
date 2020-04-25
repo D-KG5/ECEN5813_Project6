@@ -107,7 +107,7 @@ int start_adc;
 volatile bool g_Adc16ConversionDoneFlag = false;
 adc16_config_t adc16ConfigStruct;
 adc16_channel_config_t g_adc16ChannelConfigStruct;
-int g_Adc16ConversionValue=0;
+uint32_t g_Adc16ConversionValue=0;
 
 static void timer_callback_log(TimerHandle_t xTimer){
 	taskENTER_CRITICAL();
