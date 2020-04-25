@@ -25,10 +25,9 @@ extern int DAC_register_values[50];
 
 
 ////variables
-extern volatile bool g_Adc16ConversionDoneFlag;
-extern volatile uint32_t g_Adc16ConversionValue;
-extern adc16_config_t adc16ConfigStruct;
-extern adc16_channel_config_t g_adc16ChannelConfigStruct;
+//extern volatile bool g_Adc16ConversionDoneFlag;
+//extern volatile uint32_t g_Adc16ConversionValue;
+
 
 
 
@@ -65,7 +64,7 @@ void adc_Init(void)
 {
 
 
-	adc16_config_t adc16ConfigStruct;
+//	adc16_config_t adc16ConfigStruct;
 
     ADC16_GetDefaultConfig(&adc16ConfigStruct);
 #if defined(BOARD_ADC_USE_ALT_VREF)
@@ -88,7 +87,7 @@ void adc_Init(void)
 
     /* Prepare ADC channel setting */
     g_adc16ChannelConfigStruct.channelNumber = DEMO_ADC16_USER_CHANNEL;
-    g_adc16ChannelConfigStruct.enableInterruptOnConversionCompleted = true;
+    g_adc16ChannelConfigStruct.enableInterruptOnConversionCompleted = false;
 
 #if defined(FSL_FEATURE_ADC16_HAS_DIFF_MODE) && FSL_FEATURE_ADC16_HAS_DIFF_MODE
     g_adc16ChannelConfigStruct.enableDifferentialConversion = false;

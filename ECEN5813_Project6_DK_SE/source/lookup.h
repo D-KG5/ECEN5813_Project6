@@ -24,6 +24,13 @@
 #define DEMO_ADC16_USER_CHANNEL 0U /* PTE20, ADC0_SE0 */
 
 
+#define DEMO_ADC16_IRQn ADC0_IRQn
+#define DEMO_ADC16_IRQ_HANDLER_FUNC ADC0_IRQHandler
+
+extern adc16_config_t adc16ConfigStruct;
+extern adc16_channel_config_t g_adc16ChannelConfigStruct;
+
+
 //calculated values using matlab .m file
 //t=0:0.1:5;
 //y=(2+(1*sin(2*pi*(t/5))))

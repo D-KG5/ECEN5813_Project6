@@ -45,6 +45,8 @@
 #include "clock_config.h"
 #include "global_defines.h"
 #include "circ_buffer.h"
+#include "fsl_dac.h"
+#include "fsl_adc16.h"
 /*******************************************************************************
  * Definitions
  ******************************************************************************/
@@ -57,7 +59,7 @@
  * Prototypes
  ******************************************************************************/
 static void task_one(void *pvParameters);
-static void task_one_two(void *pvParameters);
+
 static void task_two(void *pvParameters);
 static void handler_task(void *pvParameters);
 /*******************************************************************************
@@ -102,10 +104,9 @@ int start_adc;
 
 
 volatile bool g_Adc16ConversionDoneFlag = false;
-volatile uint32_t g_Adc16ConversionValue = 0;
 adc16_config_t adc16ConfigStruct;
 adc16_channel_config_t g_adc16ChannelConfigStruct;
-
+int g_Adc16ConversionValue=0;
 
 
 
@@ -142,8 +143,9 @@ static void timer_callback_adc(TimerHandle_t xTimer)
 
     taskENTER_CRITICAL();
 //	PRINTF("PRINT from CallBack\n\r");
-	start_adc=1;
-    g_Adc16ConversionDoneFlag = true;
+//	start_adc=1;
+	g_Adc16ConversionDoneFlag = true;
+  //  g_Adc16ConversionDoneFlag = true;
     /* Read conversion result to clear the conversion completed flag. */
  //   g_Adc16ConversionValue = ADC16_GetChannelConversionValue(DEMO_ADC16_BASEADDR, DEMO_ADC16_CHANNEL_GROUP);
 	timestamp_counter_n++;
@@ -179,6 +181,7 @@ int main(void)
     Log_enable();
     Log_level(LOG_DEBUG);
     dac_Init();
+    adc_Init();
     dma_Init();
 
     DSPBuffer = init_buf(QUEUE_LENGTH * ITEM_SIZE);
@@ -197,6 +200,7 @@ int main(void)
 
 	timer_dac_handle = xTimerCreate("timer_callback_dac",pdMS_TO_TICKS(100),pdTRUE,NULL,timer_callback_dac);
 	timer_adc_handle = xTimerCreate("timer_callback_adc",pdMS_TO_TICKS(100),pdTRUE,NULL,timer_callback_adc);
+
 	if(timer_dac_handle== NULL && timer_adc_handle==NULL)
 	{
 		PRINTF("Fails");
@@ -206,8 +210,8 @@ int main(void)
 	{
 	    xTaskCreate(handler_task, "Handler", 1000, NULL, 3, NULL);
 	    xTaskCreate(task_one, "Hello_task_one", 500, NULL, 1, NULL);
-	 //   xTaskCreate(task_one_two, "Hello_task_one_two", 500, NULL, 1, NULL);
-	    xTaskCreate(task_two, "Hello_task_two", configMINIMAL_STACK_SIZE + 10, NULL, 1, NULL);
+
+	    xTaskCreate(task_two, "Hello_task_two", configMINIMAL_STACK_SIZE + 100, NULL, 1, NULL);
 		xTimerStart(timer_dac_handle, 0);
 		xTimerStart(timer_adc_handle, 0);
 		vTaskStartScheduler();
@@ -249,55 +253,6 @@ static void task_one(void *pvParameters)
 }
 
 
-static void task_one_two(void *pvParameters)
-{
-
-while(1)
-{
-
-	    	if(start_adc==1)
-	    	{
-	            g_Adc16ConversionDoneFlag = false;
-	            ADC16_SetChannelConfig(DEMO_ADC16_BASEADDR, DEMO_ADC16_CHANNEL_GROUP, &g_adc16ChannelConfigStruct);
-
-	            while (!g_Adc16ConversionDoneFlag)
-	            {
-	            }
-	         g_Adc16ConversionValue = ADC16_GetChannelConversionValue(DEMO_ADC16_BASEADDR, DEMO_ADC16_CHANNEL_GROUP);
-	       	 taskENTER_CRITICAL();
-	       	 PRINTF("Doing ADC stuff\r\n");
-	       	 taskEXIT_CRITICAL();
-	         start_adc=0;
-	    	}
-
-
-
-
-
-}
-
-
-
-
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 // ADC task
@@ -305,7 +260,31 @@ static void task_two(void *pvParameters)
 {
 	BaseType_t ADCbufstatus;
 	int valtosend = 4567;	// grab ADC value
+//	timer_adc_handle = xTimerCreate("timer_callback_adc",pdMS_TO_TICKS(100),pdTRUE,NULL,timer_callback_adc);
+	//xTimerStart(timer_adc_handle, 0);
 	for(;;){
+    	if(g_Adc16ConversionDoneFlag)
+    	{
+            g_Adc16ConversionDoneFlag = false;
+            ADC16_SetChannelConfig(DEMO_ADC16_BASEADDR, DEMO_ADC16_CHANNEL_GROUP, &g_adc16ChannelConfigStruct);
+
+//            while (!g_Adc16ConversionDoneFlag)
+//            {
+//            }
+        	while (0U == (kADC16_ChannelConversionDoneFlag &
+        						  ADC16_GetChannelStatusFlags(DEMO_ADC16_BASEADDR, DEMO_ADC16_CHANNEL_GROUP)));
+
+         g_Adc16ConversionValue= ADC16_GetChannelConversionValue(DEMO_ADC16_BASEADDR, DEMO_ADC16_CHANNEL_GROUP);
+         taskENTER_CRITICAL();
+       	 PRINTF("Doing ADC stuff\r\n");
+       	 taskEXIT_CRITICAL();
+         start_adc=0;
+    	}
+
+
+
+
+
 //		PRINTF("Hello Task two\r\n");
 //		Log_string("Hello Task two\r\n", MAIN, LOG_DEBUG);
 		vTaskDelay(100);
