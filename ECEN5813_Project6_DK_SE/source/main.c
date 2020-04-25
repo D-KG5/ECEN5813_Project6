@@ -137,13 +137,19 @@ static void timer_callback_dac(TimerHandle_t xTimer)
 	start_dac=1;
 	taskEXIT_CRITICAL();
 }
+void DEMO_ADC16_IRQ_HANDLER_FUNC(void)
+{
+    g_Adc16ConversionDoneFlag = true;
+    /* Read conversion result to clear the conversion completed flag. */
+    g_Adc16ConversionValue = ADC16_GetChannelConversionValue(DEMO_ADC16_BASEADDR, DEMO_ADC16_CHANNEL_GROUP);
+}
 
 static void timer_callback_adc(TimerHandle_t xTimer)
 {
     taskENTER_CRITICAL();
 //	PRINTF("PRINT from CallBack\n\r");
-//	start_adc=1;
-	g_Adc16ConversionDoneFlag = true;
+ 	start_adc=1;
+	//g_Adc16ConversionDoneFlag = true;
   //  g_Adc16ConversionDoneFlag = true;
     /* Read conversion result to clear the conversion completed flag. */
  //   g_Adc16ConversionValue = ADC16_GetChannelConversionValue(DEMO_ADC16_BASEADDR, DEMO_ADC16_CHANNEL_GROUP);
@@ -160,6 +166,7 @@ int main(void)
     SystemCoreClockUpdate();
     Log_enable();
     Log_level(LOG_DEBUG);
+    EnableIRQ(DEMO_ADC16_IRQn);
     dac_Init();
     adc_Init();
     dma_Init();
@@ -243,18 +250,21 @@ static void task_two(void *pvParameters)
 //	timer_adc_handle = xTimerCreate("timer_callback_adc",pdMS_TO_TICKS(100),pdTRUE,NULL,timer_callback_adc);
 	//xTimerStart(timer_adc_handle, 0);
 	for(;;){
-    	if(g_Adc16ConversionDoneFlag)
+    	if(start_adc==1)
     	{
             g_Adc16ConversionDoneFlag = false;
             ADC16_SetChannelConfig(DEMO_ADC16_BASEADDR, DEMO_ADC16_CHANNEL_GROUP, &g_adc16ChannelConfigStruct);
 
-//            while (!g_Adc16ConversionDoneFlag)
-//            {
-//            }
-        	while (0U == (kADC16_ChannelConversionDoneFlag &
-        						  ADC16_GetChannelStatusFlags(DEMO_ADC16_BASEADDR, DEMO_ADC16_CHANNEL_GROUP)));
+            while (!g_Adc16ConversionDoneFlag)
+            {
+            }
+            PRINTF("\r\n\r\nADC Value: %d\r\n", g_Adc16ConversionValue);
+//        	while (0U == (kADC16_ChannelConversionDoneFlag &
+//        						  ADC16_GetChannelStatusFlags(DEMO_ADC16_BASEADDR, DEMO_ADC16_CHANNEL_GROUP)));
 
-         g_Adc16ConversionValue= ADC16_GetChannelConversionValue(DEMO_ADC16_BASEADDR, DEMO_ADC16_CHANNEL_GROUP);
+//            voltRead = (float)(g_Adc16ConversionValue * (VREF_BRD / SE_12BIT));
+//            PRINTF("\r\nADC Voltage: %0.3f\r\n", voltRead);
+        // g_Adc16ConversionValue= ADC16_GetChannelConversionValue(DEMO_ADC16_BASEADDR, DEMO_ADC16_CHANNEL_GROUP);
 //         taskENTER_CRITICAL();
 //       	 PRINTF("Doing ADC stuff\r\n");
 //       	 taskEXIT_CRITICAL();

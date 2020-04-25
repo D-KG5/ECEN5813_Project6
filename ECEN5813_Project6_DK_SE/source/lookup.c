@@ -87,7 +87,7 @@ void adc_Init(void)
 
     /* Prepare ADC channel setting */
     g_adc16ChannelConfigStruct.channelNumber = DEMO_ADC16_USER_CHANNEL;
-    g_adc16ChannelConfigStruct.enableInterruptOnConversionCompleted = false;
+    g_adc16ChannelConfigStruct.enableInterruptOnConversionCompleted = true;
 
 #if defined(FSL_FEATURE_ADC16_HAS_DIFF_MODE) && FSL_FEATURE_ADC16_HAS_DIFF_MODE
     g_adc16ChannelConfigStruct.enableDifferentialConversion = false;
