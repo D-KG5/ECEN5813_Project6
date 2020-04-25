@@ -283,7 +283,7 @@ static void task_two(void *pvParameters)
 //
 static void handler_task(void *pvParameters){
 	uint8_t DSP_val[QUEUE_LENGTH * ITEM_SIZE] = {0};
-	int rawDSP_val[QUEUE_LENGTH] = {0};
+	uint32_t rawDSP_val[QUEUE_LENGTH] = {0};
 
 	int counter = 1;
 	for(;;){
