@@ -129,30 +129,27 @@ static void timer_callback_log(TimerHandle_t xTimer){
 
 
 int DAC_register_values[50];
+int dac_counter = 0;
 
 static void timer_callback_dac(TimerHandle_t xTimer)
 {
     taskENTER_CRITICAL();
-//	PRINTF("PRINT from CallBack\n\r");
 	start_dac=1;
 	taskEXIT_CRITICAL();
 }
 void DEMO_ADC16_IRQ_HANDLER_FUNC(void)
 {
+	taskENTER_CRITICAL();
     g_Adc16ConversionDoneFlag = true;
     /* Read conversion result to clear the conversion completed flag. */
     g_Adc16ConversionValue = ADC16_GetChannelConversionValue(DEMO_ADC16_BASEADDR, DEMO_ADC16_CHANNEL_GROUP);
+    taskEXIT_CRITICAL();
 }
 
 static void timer_callback_adc(TimerHandle_t xTimer)
 {
     taskENTER_CRITICAL();
-//	PRINTF("PRINT from CallBack\n\r");
  	start_adc=1;
-	//g_Adc16ConversionDoneFlag = true;
-  //  g_Adc16ConversionDoneFlag = true;
-    /* Read conversion result to clear the conversion completed flag. */
- //   g_Adc16ConversionValue = ADC16_GetChannelConversionValue(DEMO_ADC16_BASEADDR, DEMO_ADC16_CHANNEL_GROUP);
 	taskEXIT_CRITICAL();
 }
 
@@ -185,7 +182,7 @@ int main(void)
 
 	timer_dac_handle = xTimerCreate("timer_callback_dac",pdMS_TO_TICKS(100),pdTRUE,NULL,timer_callback_dac);
 	timer_adc_handle = xTimerCreate("timer_callback_adc",pdMS_TO_TICKS(100),pdTRUE,NULL,timer_callback_adc);
-	timer_log_handle = xTimerCreate("timer_callback_adc",pdMS_TO_TICKS(100),pdTRUE,NULL,timer_callback_log);
+	timer_log_handle = xTimerCreate("timer_callback_log",pdMS_TO_TICKS(100),pdTRUE,NULL,timer_callback_log);
 
 	if(timer_dac_handle== NULL && timer_adc_handle==NULL)
 	{
@@ -195,9 +192,9 @@ int main(void)
 	else
 	{
 	    xTaskCreate(handler_task, "Handler", 1000, NULL, 3, NULL);
-	    xTaskCreate(task_one, "Hello_task_one", 500, NULL, 1, NULL);
+	    xTaskCreate(task_one, "DAC_task", 500, NULL, 1, NULL);
 
-	    xTaskCreate(task_two, "Hello_task_two", configMINIMAL_STACK_SIZE + 100, NULL, 1, NULL);
+	    xTaskCreate(task_two, "ADCDMA_task", configMINIMAL_STACK_SIZE + 100, NULL, 1, NULL);
 
 	    xTimerStart(timer_log_handle, 0);
 		xTimerStart(timer_dac_handle, 0);
@@ -217,25 +214,20 @@ static void task_one(void *pvParameters)
     for (;;)
     {
     	dac_voltagevalue();
-
-
-
     	if(start_dac==1)
     	{
-    	 for(int i=0;i<50;i++)
-    	 	 {
-    		 	 DAC_SetBufferValue(DEMO_DAC_BASEADDR, 0U, DAC_register_values[i]);
-    	 	 }
-//    	 taskENTER_CRITICAL();
-//    	 PRINTF("Doing DAC stuff\r\n");
-//    	 taskEXIT_CRITICAL();
-    	 start_dac=0;
+			taskENTER_CRITICAL();
+			DAC_SetBufferValue(DEMO_DAC_BASEADDR, 0U, DAC_register_values[dac_counter]);
+//			PRINTF("DAC Value: %d\r\n", DAC_register_values[dac_counter]);
+			dac_counter++;
 
+			if(dac_counter == 49){
+				dac_counter = 0;
+			}
+			taskEXIT_CRITICAL();
+			start_dac=0;
     	}
-
-
-//    	}
-     //   vTaskSuspend(NULL);
+    	taskYIELD();
     }
 
 }
@@ -247,27 +239,18 @@ static void task_one(void *pvParameters)
 static void task_two(void *pvParameters)
 {
 	BaseType_t ADCbufstatus;
-//	timer_adc_handle = xTimerCreate("timer_callback_adc",pdMS_TO_TICKS(100),pdTRUE,NULL,timer_callback_adc);
-	//xTimerStart(timer_adc_handle, 0);
 	for(;;){
     	if(start_adc==1)
     	{
-            g_Adc16ConversionDoneFlag = false;
+    		g_Adc16ConversionDoneFlag = false;
             ADC16_SetChannelConfig(DEMO_ADC16_BASEADDR, DEMO_ADC16_CHANNEL_GROUP, &g_adc16ChannelConfigStruct);
 
             while (!g_Adc16ConversionDoneFlag)
             {
             }
-            PRINTF("\r\n\r\nADC Value: %d\r\n", g_Adc16ConversionValue);
-//        	while (0U == (kADC16_ChannelConversionDoneFlag &
-//        						  ADC16_GetChannelStatusFlags(DEMO_ADC16_BASEADDR, DEMO_ADC16_CHANNEL_GROUP)));
-
-//            voltRead = (float)(g_Adc16ConversionValue * (VREF_BRD / SE_12BIT));
-//            PRINTF("\r\nADC Voltage: %0.3f\r\n", voltRead);
-        // g_Adc16ConversionValue= ADC16_GetChannelConversionValue(DEMO_ADC16_BASEADDR, DEMO_ADC16_CHANNEL_GROUP);
-//         taskENTER_CRITICAL();
-//       	 PRINTF("Doing ADC stuff\r\n");
-//       	 taskEXIT_CRITICAL();
+//		taskENTER_CRITICAL();
+//		PRINTF("\r\nADC Value: %d\r\n", g_Adc16ConversionValue);
+//		taskEXIT_CRITICAL();
          start_adc=0;
     	}
 
@@ -287,6 +270,7 @@ static void task_two(void *pvParameters)
 			DSPBuffer->tail = (QUEUE_LENGTH * ITEM_SIZE) ;
 			taskEXIT_CRITICAL();
 		}
+		taskYIELD();
 	}
 }
 
@@ -300,6 +284,7 @@ static void handler_task(void *pvParameters){
 		xSemaphoreTake(DMACntSemaphore, portMAX_DELAY);
 		taskENTER_CRITICAL();
 		Log_string("Finished DMA Transfer\r\n", MAIN, LOG_DEBUG);
+		// empty queue
 		xQueueReset(ADCBuffer);
 		taskEXIT_CRITICAL();
 		// get data from DSP buffer

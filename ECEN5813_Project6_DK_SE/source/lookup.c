@@ -20,16 +20,7 @@
 #include <math.h>
 
 //code for voltage
-
 extern int DAC_register_values[50];
-
-
-////variables
-//extern volatile bool g_Adc16ConversionDoneFlag;
-//extern volatile uint32_t g_Adc16ConversionValue;
-
-
-
 
 
 void dac_voltagevalue()
@@ -67,9 +58,6 @@ void adc_Init(void)
 //	adc16_config_t adc16ConfigStruct;
 
     ADC16_GetDefaultConfig(&adc16ConfigStruct);
-#if defined(BOARD_ADC_USE_ALT_VREF)
-    adc16ConfigStruct.referenceVoltageSource = kADC16_ReferenceVoltageSourceValt;
-#endif
     ADC16_Init(DEMO_ADC16_BASEADDR, &adc16ConfigStruct);
 
     /* Make sure the software trigger is used. */
