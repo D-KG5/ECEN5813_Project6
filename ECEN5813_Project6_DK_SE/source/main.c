@@ -109,8 +109,6 @@ adc16_config_t adc16ConfigStruct;
 adc16_channel_config_t g_adc16ChannelConfigStruct;
 int g_Adc16ConversionValue=0;
 
-
-
 static void timer_callback_log(TimerHandle_t xTimer){
 	taskENTER_CRITICAL();
 	timestamp_counter_n++;
@@ -142,7 +140,6 @@ static void timer_callback_dac(TimerHandle_t xTimer)
 
 static void timer_callback_adc(TimerHandle_t xTimer)
 {
-
     taskENTER_CRITICAL();
 //	PRINTF("PRINT from CallBack\n\r");
 //	start_adc=1;
@@ -151,13 +148,7 @@ static void timer_callback_adc(TimerHandle_t xTimer)
     /* Read conversion result to clear the conversion completed flag. */
  //   g_Adc16ConversionValue = ADC16_GetChannelConversionValue(DEMO_ADC16_BASEADDR, DEMO_ADC16_CHANNEL_GROUP);
 	taskEXIT_CRITICAL();
-
-
-
 }
-
-
-
 
 
 int main(void)
@@ -174,8 +165,6 @@ int main(void)
     dma_Init();
 
     DSPBuffer = init_buf(QUEUE_LENGTH * ITEM_SIZE);
-	DSPBuffer->size = QUEUE_LENGTH * ITEM_SIZE;
-	DSPBuffer->tail = QUEUE_LENGTH * ITEM_SIZE;
 
     ADCBuffer = xQueueCreateStatic(QUEUE_LENGTH, ITEM_SIZE, adcQueueStorageArea, &xADCStaticQueue);
     if(ADCBuffer == NULL){
@@ -230,9 +219,9 @@ static void task_one(void *pvParameters)
     	 	 {
     		 	 DAC_SetBufferValue(DEMO_DAC_BASEADDR, 0U, DAC_register_values[i]);
     	 	 }
-    	 taskENTER_CRITICAL();
-    	 PRINTF("Doing DAC stuff\r\n");
-    	 taskEXIT_CRITICAL();
+//    	 taskENTER_CRITICAL();
+//    	 PRINTF("Doing DAC stuff\r\n");
+//    	 taskEXIT_CRITICAL();
     	 start_dac=0;
 
     	}
@@ -251,7 +240,6 @@ static void task_one(void *pvParameters)
 static void task_two(void *pvParameters)
 {
 	BaseType_t ADCbufstatus;
-//	int valtosend = 4567;	// grab ADC value
 //	timer_adc_handle = xTimerCreate("timer_callback_adc",pdMS_TO_TICKS(100),pdTRUE,NULL,timer_callback_adc);
 	//xTimerStart(timer_adc_handle, 0);
 	for(;;){
@@ -267,13 +255,12 @@ static void task_two(void *pvParameters)
         						  ADC16_GetChannelStatusFlags(DEMO_ADC16_BASEADDR, DEMO_ADC16_CHANNEL_GROUP)));
 
          g_Adc16ConversionValue= ADC16_GetChannelConversionValue(DEMO_ADC16_BASEADDR, DEMO_ADC16_CHANNEL_GROUP);
-         taskENTER_CRITICAL();
-       	 PRINTF("Doing ADC stuff\r\n");
-       	 taskEXIT_CRITICAL();
+//         taskENTER_CRITICAL();
+//       	 PRINTF("Doing ADC stuff\r\n");
+//       	 taskEXIT_CRITICAL();
          start_adc=0;
     	}
 
-//		PRINTF("Hello Task two\r\n");
 //		Log_string("Hello Task two\r\n", MAIN, LOG_DEBUG);
 		vTaskDelay(100);
 		// send to ADCBuffer
@@ -286,6 +273,8 @@ static void task_two(void *pvParameters)
 			DMA_SubmitTransfer(&g_DMA_Handle, &transferConfig, kDMA_EnableInterrupt);
 			DMA_StartTransfer(&g_DMA_Handle);
 			Log_string("Started DMA Transfer\r\n", MAIN, LOG_DEBUG);
+			DSPBuffer->size = (QUEUE_LENGTH * ITEM_SIZE);
+			DSPBuffer->tail = (QUEUE_LENGTH * ITEM_SIZE) ;
 			taskEXIT_CRITICAL();
 		}
 	}
@@ -293,27 +282,34 @@ static void task_two(void *pvParameters)
 
 //
 static void handler_task(void *pvParameters){
-	uint8_t val[QUEUE_LENGTH * ITEM_SIZE] = {0};
+	uint8_t DSP_val[QUEUE_LENGTH * ITEM_SIZE] = {0};
+	int rawDSP_val[QUEUE_LENGTH] = {0};
+
 	int counter = 1;
 	for(;;){
 		xSemaphoreTake(DMACntSemaphore, portMAX_DELAY);
 		taskENTER_CRITICAL();
-//		PRINTF("In handler task\r\n");
 		Log_string("Finished DMA Transfer\r\n", MAIN, LOG_DEBUG);
 		xQueueReset(ADCBuffer);
 		taskEXIT_CRITICAL();
 		// get data from DSP buffer
 		taskENTER_CRITICAL();
 		for(int i = 0; i < (QUEUE_LENGTH * ITEM_SIZE); i++){
-			val[i] = remove_item(DSPBuffer);
-			PRINTF("Run: %d DSP %d: %u\r\n", counter, i, val[i]);
+			DSP_val[i] = remove_item(DSPBuffer);
 		}
-			counter++;
+		DSPBuffer->head = 0;
+		DSPBuffer->tail = 0;
+		// fill int32 buffer
+		for(int j = 0; j < QUEUE_LENGTH; j++){
+			rawDSP_val[j] = (DSP_val[3 + (j * ITEM_SIZE)] << 24) + (DSP_val[2 + (j * ITEM_SIZE)] << 16) + (DSP_val[1 + (j * ITEM_SIZE)] << 8) + (DSP_val[0 + (j * ITEM_SIZE)] << 0);
+			PRINTF("Run: %d DSP %d: %u\r\n", counter, j, rawDSP_val[j]);
+		}
+		counter++;
 		taskEXIT_CRITICAL();
 		if(counter < 6){
 			taskYIELD();
 		}else{
-			PRINTF("STOPPED\r\n");
+			PRINTF("\r\nSTOPPED\r\n");
 			taskENTER_CRITICAL();
 			for(;;);
 			taskEXIT_CRITICAL();

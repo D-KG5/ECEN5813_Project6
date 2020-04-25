@@ -16,12 +16,12 @@
 
 // add item to buffer
 int insert_item(circ_buf_t *buf, uint8_t data){
-	// check if not full
+	// check if full
 	if(((buf->tail + 1) % buf->length) == buf->head){
-//		Log_string("ERROR: Buffer is full\r\n", INSERT_ITEM, LOG_DEBUG, 1);
+		Log_string("ERROR: Buffer is full\r\n", INSERT_ITEM, LOG_DEBUG);
 		// if buffer is full then realloc buffer to twice the original length
 		if(!extend_buf(buf)){
-//			Log_string("ERROR: Buffer extension failed\r\n", INSERT_ITEM, LOG_DEBUG, 1);
+			Log_string("ERROR: Buffer extension failed\r\n", INSERT_ITEM, LOG_DEBUG);
 			return -1;
 		}
 	}
@@ -35,9 +35,9 @@ int insert_item(circ_buf_t *buf, uint8_t data){
 // remove oldest item from buffer (FIFO)
 int remove_item(circ_buf_t *buf){
 	uint8_t data = 0;
-	// check if not empty
+	// check if empty
 	if(buf->head == buf->tail){
-//		Log_string("ERROR: Buffer is empty\r\n", REMOVE_ITEM, LOG_DEBUG, 1);
+		Log_string("ERROR: Buffer is empty\r\n", REMOVE_ITEM, LOG_DEBUG);
 		return -1;
 	}
 	// load data from head of buffer and decrement current size of buffer
