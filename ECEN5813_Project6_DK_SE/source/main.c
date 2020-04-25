@@ -94,7 +94,8 @@ extern dma_handle_t g_DMA_Handle;
 uint32_t srcAddr[BUFF_LENGTH] = {0x01, 0x02, 0x03, 0x04};
 uint8_t destAddr[QUEUE_LENGTH * ITEM_SIZE];
 
-
+TimerHandle_t  timer_log_handle= NULL;
+static void timer_callback_log(TimerHandle_t xTimer);
 
 
 //adc timer callback
@@ -110,18 +111,8 @@ int g_Adc16ConversionValue=0;
 
 
 
-
-
-
-
-
-int DAC_register_values[50];
-
-static void timer_callback_dac(TimerHandle_t xTimer)
-{
-    taskENTER_CRITICAL();
-//	PRINTF("PRINT from CallBack\n\r");
-	start_dac=1;
+static void timer_callback_log(TimerHandle_t xTimer){
+	taskENTER_CRITICAL();
 	timestamp_counter_n++;
 	if(timestamp_counter_n == 10){
 		timestamp_counter_n = 0;
@@ -138,6 +129,17 @@ static void timer_callback_dac(TimerHandle_t xTimer)
 	taskEXIT_CRITICAL();
 }
 
+
+int DAC_register_values[50];
+
+static void timer_callback_dac(TimerHandle_t xTimer)
+{
+    taskENTER_CRITICAL();
+//	PRINTF("PRINT from CallBack\n\r");
+	start_dac=1;
+	taskEXIT_CRITICAL();
+}
+
 static void timer_callback_adc(TimerHandle_t xTimer)
 {
 
@@ -148,19 +150,6 @@ static void timer_callback_adc(TimerHandle_t xTimer)
   //  g_Adc16ConversionDoneFlag = true;
     /* Read conversion result to clear the conversion completed flag. */
  //   g_Adc16ConversionValue = ADC16_GetChannelConversionValue(DEMO_ADC16_BASEADDR, DEMO_ADC16_CHANNEL_GROUP);
-	timestamp_counter_n++;
-	if(timestamp_counter_n == 10){
-		timestamp_counter_n = 0;
-		timestamp_counter_s++;
-	}
-	if(timestamp_counter_s == 60){
-		timestamp_counter_s = 0;
-		timestamp_counter_m++;
-	}
-	if(timestamp_counter_m == 60){
-		timestamp_counter_m = 0;
-		timestamp_counter_h++;
-	}
 	taskEXIT_CRITICAL();
 
 
@@ -200,6 +189,7 @@ int main(void)
 
 	timer_dac_handle = xTimerCreate("timer_callback_dac",pdMS_TO_TICKS(100),pdTRUE,NULL,timer_callback_dac);
 	timer_adc_handle = xTimerCreate("timer_callback_adc",pdMS_TO_TICKS(100),pdTRUE,NULL,timer_callback_adc);
+	timer_log_handle = xTimerCreate("timer_callback_adc",pdMS_TO_TICKS(100),pdTRUE,NULL,timer_callback_log);
 
 	if(timer_dac_handle== NULL && timer_adc_handle==NULL)
 	{
@@ -212,6 +202,8 @@ int main(void)
 	    xTaskCreate(task_one, "Hello_task_one", 500, NULL, 1, NULL);
 
 	    xTaskCreate(task_two, "Hello_task_two", configMINIMAL_STACK_SIZE + 100, NULL, 1, NULL);
+
+	    xTimerStart(timer_log_handle, 0);
 		xTimerStart(timer_dac_handle, 0);
 		xTimerStart(timer_adc_handle, 0);
 		vTaskStartScheduler();
@@ -259,7 +251,7 @@ static void task_one(void *pvParameters)
 static void task_two(void *pvParameters)
 {
 	BaseType_t ADCbufstatus;
-	int valtosend = 4567;	// grab ADC value
+//	int valtosend = 4567;	// grab ADC value
 //	timer_adc_handle = xTimerCreate("timer_callback_adc",pdMS_TO_TICKS(100),pdTRUE,NULL,timer_callback_adc);
 	//xTimerStart(timer_adc_handle, 0);
 	for(;;){
@@ -281,15 +273,11 @@ static void task_two(void *pvParameters)
          start_adc=0;
     	}
 
-
-
-
-
 //		PRINTF("Hello Task two\r\n");
 //		Log_string("Hello Task two\r\n", MAIN, LOG_DEBUG);
 		vTaskDelay(100);
 		// send to ADCBuffer
-		ADCbufstatus = xQueueSendToBack(ADCBuffer, &valtosend, 0);
+		ADCbufstatus = xQueueSendToBack(ADCBuffer, &g_Adc16ConversionValue, 0);
 		if(ADCbufstatus != pdPASS){
 			// buffer full, initiate DMA transfer
 			taskENTER_CRITICAL();
