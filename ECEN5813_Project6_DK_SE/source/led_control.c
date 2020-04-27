@@ -14,6 +14,15 @@
 #include "logger.h"
 #include "fsl_debug_console.h"
 
+/* FreeRTOS kernel includes. */
+#include "FreeRTOS.h"
+#include "task.h"
+#include "queue.h"
+#include "timers.h"
+#include "semphr.h"
+
+SemaphoreHandle_t LEDBinSemaphore;
+
 // initialize RGB LEDs
 void LED_init(void){
 	uint32_t masking_state;
@@ -43,6 +52,7 @@ void LED_init(void){
 	PTB->PSOR = MASK(GREEN_LED_SHIFT);
 	PTD->PSOR = MASK(BLUE_LED_SHIFT);
 	END_CRITICAL(masking_state);
+
 	Log_string("LED Initialized\r\n", LED_INIT, LOG_DEBUG);
 }
 
@@ -51,6 +61,7 @@ void LED_init(void){
  * @args unit8_t color: pass in desired color of RGB LED
  */
 void LED_off(uint8_t color){
+	xSemaphoreTake(LEDBinSemaphore, 0);
 	// clear RGB LED Pins
 	switch(color){
 	case RED:
@@ -75,6 +86,7 @@ void LED_off(uint8_t color){
 		Log_string("ERROR: Couldn't turn off LED\r\n", LED_OFF, LOG_STATUS);
 		break;
 	}
+	xSemaphoreGive(LEDBinSemaphore);
 }
 
 /**
@@ -84,6 +96,7 @@ void LED_off(uint8_t color){
 void LED_on(uint8_t color){
 	// set RGB LED Pins
 	LED_off(ALL);
+	xSemaphoreTake(LEDBinSemaphore, 0);
 	switch(color){
 	case RED:
 		PTB->PCOR = MASK(RED_LED_SHIFT);
@@ -112,6 +125,7 @@ void LED_on(uint8_t color){
 	default:
 		Log_string("ERROR: Couldn't turn off LED\r\n", LED_ON, LOG_STATUS);
 	}
+	xSemaphoreGive(LEDBinSemaphore);
 }
 
 // flash LED num_flashes times
@@ -123,7 +137,7 @@ int LED_flash(uint8_t color, uint8_t num_flashes){
 		LED_on(color);
 		Delay(1000000);
 		LED_off(color);
-		Delay(1000000);
+		Delay(0);
 		flash++;
 	}
 	return flash;

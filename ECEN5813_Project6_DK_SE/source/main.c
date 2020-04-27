@@ -45,6 +45,7 @@
 #include "clock_config.h"
 #include "global_defines.h"
 #include "circ_buffer.h"
+#include "led_control.h"
 #include "fsl_dac.h"
 #include "fsl_adc16.h"
 /*******************************************************************************
@@ -95,6 +96,7 @@ circ_buf_t * DSPBuffer;
 uint32_t rawDSP_val[QUEUE_LENGTH] = {0};
 
 extern SemaphoreHandle_t DMACntSemaphore;
+extern SemaphoreHandle_t LEDBinSemaphore;
 
 dma_transfer_config_t transferConfig;
 extern dma_handle_t g_DMA_Handle;
@@ -163,7 +165,9 @@ int main(void)
     BOARD_InitDebugConsole();
     SystemCoreClockUpdate();
     Log_enable();
-    Log_level(LOG_DEBUG);
+    Log_level(LOG_STATUS);
+    LED_init();
+
     EnableIRQ(ADC0_IRQn);
     dac_Init();
     adc_Init();
@@ -171,14 +175,22 @@ int main(void)
 
     DSPBuffer = init_buf(QUEUE_LENGTH * ITEM_SIZE);
 
+	LEDBinSemaphore = xSemaphoreCreateBinary();
+    if(LEDBinSemaphore == NULL){
+    	PRINTF("FAIL\n");
+    	LED_on(RED);
+    }
+
     ADCBuffer = xQueueCreateStatic(QUEUE_LENGTH, ITEM_SIZE, adcQueueStorageArea, &xADCStaticQueue);
     if(ADCBuffer == NULL){
     	PRINTF("FAIL\n");
+    	LED_on(RED);
     }
 
     DMACntSemaphore = xSemaphoreCreateCounting(40, 0);
     if(DMACntSemaphore == NULL){
     	PRINTF("FAIL\n");
+    	LED_on(RED);
     }
 
 	timer_dac_handle = xTimerCreate("timer_callback_dac",pdMS_TO_TICKS(100),pdTRUE,NULL,timer_callback_dac);
@@ -188,6 +200,7 @@ int main(void)
 	if(timer_dac_handle== NULL && timer_adc_handle==NULL)
 	{
 		PRINTF("Fails");
+		LED_on(RED);
 	}
 
 	else
@@ -207,6 +220,7 @@ int main(void)
         ;
 }
 
+
 /*!
  * @brief Task responsible for DAC.
  */
@@ -217,6 +231,7 @@ static void task_DAC(void *pvParameters)
     	dac_voltagevalue();
     	if(start_dac==1)
     	{
+    		LED_on(GREEN);
 			taskENTER_CRITICAL();
 			DAC_SetBufferValue(DAC_BASEADDR, 0U, DAC_register_values[dac_counter]);
 //			PRINTF("DAC Value: %d\r\n", DAC_register_values[dac_counter]);
@@ -226,6 +241,7 @@ static void task_DAC(void *pvParameters)
 				dac_counter = 0;
 			}
 			taskEXIT_CRITICAL();
+			LED_off(GREEN);
 			start_dac=0;
     	}
     	taskYIELD();
@@ -234,9 +250,9 @@ static void task_DAC(void *pvParameters)
 }
 
 
-
-
-// ADC task
+/*!
+ * @brief Task responsible for ADC.
+ */
 static void task_ADC(void *pvParameters)
 {
 	BaseType_t ADCbufstatus;
@@ -257,12 +273,14 @@ static void task_ADC(void *pvParameters)
 		ADCbufstatus = xQueueSendToBack(ADCBuffer, &g_Adc16ConversionValue, 0);
 		if(ADCbufstatus != pdPASS){
 			// buffer full, initiate DMA transfer
+			LED_flash(BLUE, 1);
 			taskENTER_CRITICAL();
 			DMA_PrepareTransfer(&transferConfig, adcQueueStorageArea, sizeof(adcQueueStorageArea[0]), DSPBuffer->buffer,
 					sizeof(DSPBuffer->buffer[0]), sizeof(adcQueueStorageArea), kDMA_MemoryToMemory);
 			DMA_SubmitTransfer(&g_DMA_Handle, &transferConfig, kDMA_EnableInterrupt);
+
 			DMA_StartTransfer(&g_DMA_Handle);
-			Log_string("Started DMA Transfer\r\n", MAIN, LOG_DEBUG);
+			Log_string("Started DMA Transfer\r\n", MAIN, LOG_STATUS);
 			DSPBuffer->size = (QUEUE_LENGTH * ITEM_SIZE);
 			DSPBuffer->tail = (QUEUE_LENGTH * ITEM_SIZE) ;
 			taskEXIT_CRITICAL();
@@ -271,7 +289,9 @@ static void task_ADC(void *pvParameters)
 	}
 }
 
-//
+/*!
+ * @brief Task responsible for handling DMA interrupts.
+ */
 static void handler_task(void *pvParameters){
 	uint8_t DSP_val[QUEUE_LENGTH * ITEM_SIZE] = {0};
 
@@ -281,7 +301,7 @@ static void handler_task(void *pvParameters){
 		taskENTER_CRITICAL();
 		// empty queue
 		xQueueReset(ADCBuffer);
-		Log_string("Finished DMA Transfer\r\n", MAIN, LOG_DEBUG);
+		Log_string("Finished DMA Transfer\r\n", MAIN, LOG_STATUS);
 
 		// get data from DSP buffer
 		for(int i = 0; i < (QUEUE_LENGTH * ITEM_SIZE); i++){
@@ -314,6 +334,9 @@ static void handler_task(void *pvParameters){
 	}
 }
 
+/*!
+ * @brief Task responsible for math processing.
+ */
 static void task_calculate(void *pvParameters)
 {
 	float voltageval[QUEUE_LENGTH] = {0};
@@ -325,33 +348,32 @@ static void task_calculate(void *pvParameters)
 	for(int k=0; k < (QUEUE_LENGTH + 1) ;k++)
 	{
 		voltageval[k] = (float)(rawDSP_val[k] * (VREF_BRD / SE_12BIT));
-//		PRINTF("Voltage: %0.3f\n\r", voltageval[k]);
 	}
 	//inspired from https://www.programmingsimplified.com/c/source-code/c-program-find-maximum-element-in-array
 	float maximum = voltageval[0];
 	int location;
 
-	 for (int c = 0; c < QUEUE_LENGTH; c++)
-	 {
-	   if (voltageval[c] > maximum)
-	   {
-		  maximum  = voltageval[c];
-		  location = c;
-	   }
-	 }
+	for (int c = 0; c < QUEUE_LENGTH; c++)
+	{
+		if (voltageval[c] > maximum)
+		{
+			maximum  = voltageval[c];
+			location = c;
+		}
+	}
 	 PRINTF("Maximum element is present at location %d and its value is %0.3f\r\n", location, maximum);
 
 	 float minimum = voltageval[0];
 
 
-	  for (int c = 0; c < QUEUE_LENGTH; c++)
-	  {
+	for (int c = 0; c < QUEUE_LENGTH; c++)
+	{
 		if (voltageval[c] < minimum)
 		{
-		   minimum  = voltageval[c];
-		   location = c;
+			minimum  = voltageval[c];
+			location = c;
 		}
-	  }
+	}
 
 	  PRINTF("Minimum element is present at location %d and its value is %0.3f\r\n", location, minimum);
 
@@ -379,17 +401,6 @@ static void task_calculate(void *pvParameters)
 	taskYIELD();
 	}
 }
-
-
-
-
-
-
-
-
-
-
-
 
 
 /* configSUPPORT_STATIC_ALLOCATION is set to 1, so the application must provide an

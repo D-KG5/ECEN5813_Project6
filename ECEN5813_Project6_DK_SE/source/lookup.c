@@ -16,7 +16,9 @@
 #include <stdint.h>
 #include "board.h"
 #include "MKL25Z4.h"
+#include "global_defines.h"
 #include "lookup.h"
+#include "led_control.h"
 #include <math.h>
 
 //code for voltage
@@ -64,6 +66,7 @@ void adc_Init(void)
     else
     {
         PRINTF("ADC16_DoAutoCalibration() Failed.\r\n");
+        LED_on(RED);
     }
 #endif /* FSL_FEATURE_ADC16_HAS_CALIBRATION */
 
