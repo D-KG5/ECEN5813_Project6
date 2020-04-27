@@ -58,12 +58,14 @@
 /*******************************************************************************
  * Prototypes
  ******************************************************************************/
-static void task_one(void *pvParameters);
-
-static void task_two(void *pvParameters);
-static void task_calculate(void *pvParameters);
+static void task_DAC(void *pvParameters);
+static void task_ADC(void *pvParameters);
 static void handler_task(void *pvParameters);
-TaskHandle_t  calculation= NULL;
+static void task_calculate(void *pvParameters);
+TaskHandle_t  Task_DAC = NULL;
+TaskHandle_t  Task_ADC = NULL;
+TaskHandle_t  Handler_task = NULL;
+TaskHandle_t  calculation = NULL;
 /*******************************************************************************
  * Code
  ******************************************************************************/
@@ -74,9 +76,8 @@ TaskHandle_t  calculation= NULL;
 //timer_callback_dac
 TimerHandle_t  timer_dac_handle= NULL;
 static void timer_callback_dac(TimerHandle_t xTimer);
-int start_dac;
-int arr[64];
-int j=0;
+int start_dac = 0;
+
 // timestamp counter vars for tenths, seconds, minutes, hours
 uint8_t timestamp_counter_n = 0;
 uint8_t timestamp_counter_s = 0;
@@ -87,30 +88,29 @@ static StaticQueue_t xADCStaticQueue;
 uint8_t adcQueueStorageArea[QUEUE_LENGTH * ITEM_SIZE];
 QueueHandle_t ADCBuffer;
 
+int DAC_register_values[50];
+int dac_counter = 0;
+
 circ_buf_t * DSPBuffer;
+uint32_t rawDSP_val[QUEUE_LENGTH] = {0};
 
 extern SemaphoreHandle_t DMACntSemaphore;
 
 dma_transfer_config_t transferConfig;
 extern dma_handle_t g_DMA_Handle;
 
-uint32_t srcAddr[BUFF_LENGTH] = {0x01, 0x02, 0x03, 0x04};
-uint8_t destAddr[QUEUE_LENGTH * ITEM_SIZE];
-
-TimerHandle_t  timer_log_handle= NULL;
+TimerHandle_t  timer_log_handle = NULL;
 static void timer_callback_log(TimerHandle_t xTimer);
-
 
 //adc timer callback
 TimerHandle_t  timer_adc_handle= NULL;
 static void timer_callback_adc(TimerHandle_t xTimer);
 int start_adc;
 
-
 volatile bool g_Adc16ConversionDoneFlag = false;
 adc16_config_t adc16ConfigStruct;
 adc16_channel_config_t g_adc16ChannelConfigStruct;
-uint32_t g_Adc16ConversionValue=0;
+uint32_t g_Adc16ConversionValue = 0;
 
 static void timer_callback_log(TimerHandle_t xTimer){
 	taskENTER_CRITICAL();
@@ -130,32 +130,19 @@ static void timer_callback_log(TimerHandle_t xTimer){
 	taskEXIT_CRITICAL();
 }
 
-
-int DAC_register_values[50];
-int dac_counter = 0;
-
 static void timer_callback_dac(TimerHandle_t xTimer)
 {
     taskENTER_CRITICAL();
-	start_dac=1;
+	start_dac = 1;
 	taskEXIT_CRITICAL();
 }
-void DEMO_ADC16_IRQ_HANDLER_FUNC(void)
+
+void ADC0_IRQHandler(void)
 {
 	taskENTER_CRITICAL();
     g_Adc16ConversionDoneFlag = true;
     /* Read conversion result to clear the conversion completed flag. */
-    g_Adc16ConversionValue = ADC16_GetChannelConversionValue(DEMO_ADC16_BASEADDR, DEMO_ADC16_CHANNEL_GROUP);
-  //  PRINTF("ADCValue:%d\n\r",g_Adc16ConversionValue);
-    if(j<64)
-    {
-    arr[j]=g_Adc16ConversionValue;
-    j++;
-    }
-    else
-    {
-    	j=0;
-    }
+    g_Adc16ConversionValue = ADC16_GetChannelConversionValue(ADC16_BASEADDR, ADC16_CHANNEL_GROUP);
     taskEXIT_CRITICAL();
 }
 
@@ -177,7 +164,7 @@ int main(void)
     SystemCoreClockUpdate();
     Log_enable();
     Log_level(LOG_DEBUG);
-    EnableIRQ(DEMO_ADC16_IRQn);
+    EnableIRQ(ADC0_IRQn);
     dac_Init();
     adc_Init();
     dma_Init();
@@ -205,9 +192,9 @@ int main(void)
 
 	else
 	{
-	    xTaskCreate(handler_task, "Handler", 1000, NULL, 0, NULL);
-	    xTaskCreate(task_one, "DAC_task", 500, NULL, 0, NULL);
-	    xTaskCreate(task_two, "ADCDMA_task", configMINIMAL_STACK_SIZE + 100, NULL, 0, NULL);
+	    xTaskCreate(handler_task, "Handler", 1000, NULL, 0, &Task_DAC);
+	    xTaskCreate(task_DAC, "DAC_task", 500, NULL, 0, &Task_ADC);
+	    xTaskCreate(task_ADC, "ADCDMA_task", configMINIMAL_STACK_SIZE + 100, NULL, 0, &Handler_task);
 	    xTaskCreate(task_calculate, "calculation_task", 500, NULL, 1,&calculation);
 
 	    xTimerStart(timer_log_handle, 0);
@@ -223,7 +210,7 @@ int main(void)
 /*!
  * @brief Task responsible for DAC.
  */
-static void task_one(void *pvParameters)
+static void task_DAC(void *pvParameters)
 {
     for (;;)
     {
@@ -231,7 +218,7 @@ static void task_one(void *pvParameters)
     	if(start_dac==1)
     	{
 			taskENTER_CRITICAL();
-			DAC_SetBufferValue(DEMO_DAC_BASEADDR, 0U, DAC_register_values[dac_counter]);
+			DAC_SetBufferValue(DAC_BASEADDR, 0U, DAC_register_values[dac_counter]);
 //			PRINTF("DAC Value: %d\r\n", DAC_register_values[dac_counter]);
 			dac_counter++;
 
@@ -250,25 +237,21 @@ static void task_one(void *pvParameters)
 
 
 // ADC task
-static void task_two(void *pvParameters)
+static void task_ADC(void *pvParameters)
 {
 	BaseType_t ADCbufstatus;
 	for(;;){
     	if(start_adc==1)
     	{
     		g_Adc16ConversionDoneFlag = false;
-            ADC16_SetChannelConfig(DEMO_ADC16_BASEADDR, DEMO_ADC16_CHANNEL_GROUP, &g_adc16ChannelConfigStruct);
+            ADC16_SetChannelConfig(ADC16_BASEADDR, ADC16_CHANNEL_GROUP, &g_adc16ChannelConfigStruct);
 
             while (!g_Adc16ConversionDoneFlag)
             {
             }
-//		taskENTER_CRITICAL();
-//		PRINTF("\r\nADC Value: %d\r\n", g_Adc16ConversionValue);
-//		taskEXIT_CRITICAL();
-         start_adc=0;
+            start_adc=0;
     	}
 
-//		Log_string("Hello Task two\r\n", MAIN, LOG_DEBUG);
 		vTaskDelay(100);
 		// send to ADCBuffer
 		ADCbufstatus = xQueueSendToBack(ADCBuffer, &g_Adc16ConversionValue, 0);
@@ -291,18 +274,16 @@ static void task_two(void *pvParameters)
 //
 static void handler_task(void *pvParameters){
 	uint8_t DSP_val[QUEUE_LENGTH * ITEM_SIZE] = {0};
-	uint32_t rawDSP_val[QUEUE_LENGTH] = {0};
 
 	int counter = 1;
 	for(;;){
 		xSemaphoreTake(DMACntSemaphore, portMAX_DELAY);
 		taskENTER_CRITICAL();
-		Log_string("Finished DMA Transfer\r\n", MAIN, LOG_DEBUG);
 		// empty queue
 		xQueueReset(ADCBuffer);
-		taskEXIT_CRITICAL();
+		Log_string("Finished DMA Transfer\r\n", MAIN, LOG_DEBUG);
+
 		// get data from DSP buffer
-		taskENTER_CRITICAL();
 		for(int i = 0; i < (QUEUE_LENGTH * ITEM_SIZE); i++){
 			DSP_val[i] = remove_item(DSPBuffer);
 		}
@@ -311,9 +292,10 @@ static void handler_task(void *pvParameters){
 		// fill int32 buffer
 		for(int j = 0; j < QUEUE_LENGTH; j++){
 			rawDSP_val[j] = (DSP_val[3 + (j * ITEM_SIZE)] << 24) + (DSP_val[2 + (j * ITEM_SIZE)] << 16) + (DSP_val[1 + (j * ITEM_SIZE)] << 8) + (DSP_val[0 + (j * ITEM_SIZE)] << 0);
-			PRINTF("Run: %d DSP %d: %u\r\n", counter, j, rawDSP_val[j]);
-
+//			PRINTF("Run: %d DSP %d: %u\r\n", counter, j, rawDSP_val[j]);
 		}
+		PRINTF("Run: %d\r\n", counter);
+		// do processing and report 5 times, then end program
 		xTaskNotify(calculation,0,eNoAction);//notifies the calculation task
 		counter++;
 		taskEXIT_CRITICAL();
@@ -322,79 +304,80 @@ static void handler_task(void *pvParameters){
 		}else{
 			PRINTF("\r\nSTOPPED\r\n");
 			taskENTER_CRITICAL();
+			vTaskDelete(Task_DAC);
+			vTaskDelete(Task_ADC);
+			vTaskDelete(calculation);
+			vTaskDelete(NULL);
 			for(;;);
 			taskEXIT_CRITICAL();
 		}
-		// do processing and report 5 times, then end program
 	}
 }
 
 static void task_calculate(void *pvParameters)
 {
+	float voltageval[QUEUE_LENGTH] = {0};
+	for(;;)
+	{
+	   xTaskNotifyWait(0, 0, NULL,portMAX_DELAY );
+	   taskENTER_CRITICAL();
 
-while(1)
-{
- //  xTaskNotify(portMAX_DELAY,eNoAction);
-   xTaskNotifyWait(0, 0, NULL,portMAX_DELAY );
-	taskENTER_CRITICAL();
+	for(int k=0; k < (QUEUE_LENGTH + 1) ;k++)
+	{
+		voltageval[k] = (float)(rawDSP_val[k] * (VREF_BRD / SE_12BIT));
+//		PRINTF("Voltage: %0.3f\n\r", voltageval[k]);
+	}
+	//inspired from https://www.programmingsimplified.com/c/source-code/c-program-find-maximum-element-in-array
+	float maximum = voltageval[0];
+	int location;
 
-for(int k=0;k<65;k++)
-{
-PRINTF("%dAverage\n\r",arr[k]);
-}
-//inspired from https://www.programmingsimplified.com/c/source-code/c-program-find-maximum-element-in-array
-uint32_t maximum = arr[0];
-int location;
+	 for (int c = 0; c < QUEUE_LENGTH; c++)
+	 {
+	   if (voltageval[c] > maximum)
+	   {
+		  maximum  = voltageval[c];
+		  location = c;
+	   }
+	 }
+	 PRINTF("Maximum element is present at location %d and its value is %0.3f\r\n", location, maximum);
 
- for (int c = 0; c < 64; c++)
- {
-   if (arr[c] > maximum)
-   {
-      maximum  = arr[c];
-      location = c;
-   }
- }
- PRINTF("Maximum element is present at location %d and its value is %d.\r\n", location, maximum);
-
- uint32_t minimum = arr[0];
-
-
-  for (int c = 0; c < 64; c++)
-  {
-    if (arr[c] < minimum)
-    {
-       minimum  = arr[c];
-       location = c;
-    }
-  }
-
-  PRINTF("Minimum element is present at location %d and its value is %d.\r\n", location, minimum);
-
-uint32_t sum=0;
-uint32_t average;
-for(int p=0;p<64;p++)
-{
-	sum += arr[p];
-}
-average=sum/64;
-
-PRINTF("Average: %d.\r\n", average);
-
-//inspired by https://www.programiz.com/c-programming/examples/standard-deviation
-
-int SD=0;
-for(int p=0;p<64;p++)
-{
-	SD+=pow((arr[p]-average),2);
-}
-
-SD=sqrt(SD/64);
-
-PRINTF("Standard deviation: %d.\r\n", SD);
+	 float minimum = voltageval[0];
 
 
-taskEXIT_CRITICAL();
-}
+	  for (int c = 0; c < QUEUE_LENGTH; c++)
+	  {
+		if (voltageval[c] < minimum)
+		{
+		   minimum  = voltageval[c];
+		   location = c;
+		}
+	  }
+
+	  PRINTF("Minimum element is present at location %d and its value is %0.3f\r\n", location, minimum);
+
+	float sum=0.0;
+	float average;
+	for(int p=0; p<QUEUE_LENGTH; p++)
+	{
+		sum += voltageval[p];
+	}
+	average = sum / QUEUE_LENGTH;
+
+	PRINTF("Average: %0.3f\r\n", average);
+
+	//inspired by https://www.programiz.com/c-programming/examples/standard-deviation
+
+	float SD = 0.0;
+	for(int p = 0; p < QUEUE_LENGTH ;p++)
+	{
+		SD += pow((voltageval[p] - average), 2);
+	}
+	SD = sqrt(SD / QUEUE_LENGTH);
+
+	PRINTF("Standard deviation: %0.3f\r\n\r\n", SD);
+	taskEXIT_CRITICAL();
+	taskYIELD();
+	}
 }
 
 

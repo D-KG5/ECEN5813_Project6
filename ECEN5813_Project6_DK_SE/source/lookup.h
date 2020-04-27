@@ -16,20 +16,15 @@
 #define PI 3.141592653589793
 #define VREF_BRD 3.300
 #define SE_12BIT 4096.0
-#define DEMO_DAC_BASEADDR DAC0
+#define DAC_BASEADDR DAC0
 
 //adc
-#define DEMO_ADC16_BASEADDR ADC0
-#define DEMO_ADC16_CHANNEL_GROUP 0U
-#define DEMO_ADC16_USER_CHANNEL 0U /* PTE20, ADC0_SE0 */
-
-
-#define DEMO_ADC16_IRQn ADC0_IRQn
-#define DEMO_ADC16_IRQ_HANDLER_FUNC ADC0_IRQHandler
+#define ADC16_BASEADDR ADC0
+#define ADC16_CHANNEL_GROUP 0U
+#define ADC16_USER_CHANNEL 0U /* PTE20, ADC0_SE0 */
 
 extern adc16_config_t adc16ConfigStruct;
 extern adc16_channel_config_t g_adc16ChannelConfigStruct;
-
 
 //calculated values using matlab .m file
 //t=0:0.1:5;

@@ -35,8 +35,6 @@ float voltage=0;
     // PRINTF("hello %f\n",voltage);
      //PRINTF("%f\n",a);
      DAC_register_values[i]= (int) ((SE_12BIT*voltage/VREF_BRD)-1);
-    // PRINTF("%d\n",DAC_register_values[i]);
-
      step=step+0.1;
 	}
 }
@@ -45,27 +43,23 @@ void dac_Init(void)
 {
 	dac_config_t dacConfigStruct;
     DAC_GetDefaultConfig(&dacConfigStruct);
-    DAC_Init(DEMO_DAC_BASEADDR, &dacConfigStruct);
-    DAC_Enable(DEMO_DAC_BASEADDR, true); /* Enable output. */
+    DAC_Init(DAC_BASEADDR, &dacConfigStruct);
+    DAC_Enable(DAC_BASEADDR, true); /* Enable output. */
 
 }
 
 
 void adc_Init(void)
 {
-
-
-//	adc16_config_t adc16ConfigStruct;
-
     ADC16_GetDefaultConfig(&adc16ConfigStruct);
-    ADC16_Init(DEMO_ADC16_BASEADDR, &adc16ConfigStruct);
+    ADC16_Init(ADC16_BASEADDR, &adc16ConfigStruct);
 
     /* Make sure the software trigger is used. */
-    ADC16_EnableHardwareTrigger(DEMO_ADC16_BASEADDR, false);
+    ADC16_EnableHardwareTrigger(ADC16_BASEADDR, false);
 #if defined(FSL_FEATURE_ADC16_HAS_CALIBRATION) && FSL_FEATURE_ADC16_HAS_CALIBRATION
-    if (kStatus_Success == ADC16_DoAutoCalibration(DEMO_ADC16_BASEADDR))
+    if (kStatus_Success == ADC16_DoAutoCalibration(ADC16_BASEADDR))
     {
-        PRINTF("\r\nADC16_DoAutoCalibration() Done.");
+        PRINTF("ADC16_DoAutoCalibration() Done.\r\n\r\n");
     }
     else
     {
@@ -74,7 +68,7 @@ void adc_Init(void)
 #endif /* FSL_FEATURE_ADC16_HAS_CALIBRATION */
 
     /* Prepare ADC channel setting */
-    g_adc16ChannelConfigStruct.channelNumber = DEMO_ADC16_USER_CHANNEL;
+    g_adc16ChannelConfigStruct.channelNumber = ADC16_USER_CHANNEL;
     g_adc16ChannelConfigStruct.enableInterruptOnConversionCompleted = true;
 
 #if defined(FSL_FEATURE_ADC16_HAS_DIFF_MODE) && FSL_FEATURE_ADC16_HAS_DIFF_MODE
