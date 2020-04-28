@@ -24,22 +24,21 @@
 //code for voltage
 extern int DAC_register_values[50];
 
-
+// load values into lookup table
 void dac_voltagevalue()
 {
-static double step=0;
-float voltage=0;
-//float a=2.564;
+	static double step=0;
+	float voltage=0;
+
 	for (int i=0;i<50;i++)
 	{
-
      voltage=(2+(sin(.4*PI*step) ));
     // PRINTF("hello %f\n",voltage);
-     //PRINTF("%f\n",a);
      DAC_register_values[i]= (int) ((SE_12BIT*voltage/VREF_BRD)-1);
      step=step+0.1;
 	}
 }
+
 
 void dac_Init(void)
 {
