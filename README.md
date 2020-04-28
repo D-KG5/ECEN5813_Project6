@@ -12,6 +12,11 @@ PES Project 6 for ECEN 5813. By Dhruva Koley and Sagar Eligar
 	- logger.h: header file for logger.c
 	- circ_buffer.c: source file that contains circular buffer functions
 	- circ_buffer.h: header file for circ_buffer.c
+	- dma.c: source file that contains DMA functions
+	- dma.h: header file for dma.c
+	- lookup.c: source file that contains ADC, DAC, lookup functions
+	- lookup.h: header file for lookup.c
+	- FreeRTOSConfig.h: header file for FreeRTOS config
 
   - uCUnit
 	- System.c: source file that containsKL25Z specific system changes to allow uCUnit to work
