@@ -27,11 +27,7 @@ static const char* log_levels[] = {"Status:", "Debug:", "Test:", ""};
 // function name enum and accompanying strings
 func_names_t func_name;
 static const char* func_names[] = {"main:", "POST:", "Log_enable:", "Log_level:", "LED_init:", "LED_off:",
-							"LED_off:", "LED_flash:", "echofunc:", "application_mode:",
-							"SysTick_init:", "Init_UART0:", "UART0_Transmit_Poll:", "UART0_Receive_Poll:", "Send_String_Poll:",
-							"receive_check", "transmit_check", "UCUNIT_WriteString", "UCUNIT_WriteInt", "UCUNIT_Init",
-							"UCUNIT_Shutdown","UART0_IRQHandler","Send_String","Receive_String","insert_item","remove_item",
-							"destroy_buf","SysTick_enable","SysTick_disable","SysTick_Handler," ""};
+							"LED_off:", "LED_flash:", "dac_task:", ""};
 
 static bool enabled = false;
 
@@ -46,11 +42,7 @@ char * log_str;
 // returns formatted timestamp string HH:MM:SS.n
 char * Log_timestamp(void){
 #if LOGGING
-//	uint32_t masking_state;
-//	masking_state = __get_PRIMASK();
-//	START_CRITICAL();
 	snprintf(timestamp, 11, "%02d:%02d:%02d.%d", timestamp_counter_h, timestamp_counter_m, timestamp_counter_s, timestamp_counter_n);
-//	END_CRITICAL(masking_state);
 #endif
 	return timestamp;
 }

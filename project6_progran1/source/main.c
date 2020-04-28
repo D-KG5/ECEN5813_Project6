@@ -109,9 +109,6 @@ static void timer_callback_dac(TimerHandle_t xTimer)
 }
 
 
-
-
-
 int main(void)
 {
     /* Init board hardware. */
@@ -130,7 +127,6 @@ int main(void)
     }
 
 
-
     timer_dac_handle = xTimerCreate("timer_callback_dac",pdMS_TO_TICKS(100),pdTRUE,NULL,timer_callback_dac);
     timer_log_handle = xTimerCreate("timer_callback_log",pdMS_TO_TICKS(100),pdTRUE,NULL,timer_callback_log);
 	if(timer_dac_handle== NULL&& timer_log_handle==NULL)
@@ -140,7 +136,6 @@ int main(void)
 	}
 	xTimerStart(timer_dac_handle, 0);
 	xTimerStart(timer_log_handle, 0);
-	Log_string("Started DAC Transfer\r\n", MAIN, LOG_STATUS);
     xTaskCreate(dac_task, "Hello_task", 500, NULL, 0, NULL);
 
     vTaskStartScheduler();
@@ -160,28 +155,18 @@ static void dac_task(void *pvParameters)
 
     	if(start_dac==1)
     	{
-    	//	LED_on(BLUE);
 			taskENTER_CRITICAL();
 			DAC_SetBufferValue(DEMO_DAC_BASEADDR, 0U, DAC_register_values[dac_counter]);
-            //voltage= 1000 * (DAC_register_values[dac_counter]+1)*(VREF_BRD/SE_12BIT);
-//			if(dac_counter<51)
-//			{
-//            PRINTF("%d,\r\n",voltage);
-//			}
-			PRINTF("DAC Value[%d]: %d\r\n",dac_counter, DAC_register_values[dac_counter]);//prints the dac registe values
-		//	Log_integer(DAC_register_values[dac_counter],MAIN,1);
+
+			Log_string("DAC Value", DAC_TASK, LOG_STATUS);
+			PRINTF("[%d]: %d\r\n",dac_counter, DAC_register_values[dac_counter]);//prints the dac register values
 			dac_counter++;
 
 			if(dac_counter == 49){
 				dac_counter = 0;
 			}
 			taskEXIT_CRITICAL();
-		//	LED_off(BLUE);
 			start_dac=0;//sets the flag to zero
     	}
-
-
-        //PRINTF("Hello world.\r\n");
-       // vTaskSuspend(NULL);
     }
 }

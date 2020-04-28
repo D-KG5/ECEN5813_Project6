@@ -167,7 +167,6 @@ static void timer_callback_adc(TimerHandle_t xTimer)
 
 int main(void)
 {
-
     /* Init board hardware. */
     BOARD_InitPins();
     BOARD_BootClockRUN();

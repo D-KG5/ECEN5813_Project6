@@ -135,7 +135,7 @@ int LED_flash(uint8_t color, uint8_t num_flashes){
 	Log_integer(num_flashes, EMPTY_NAME, LOG_DEBUG);
 	for(int i = 0; i < num_flashes; i++){
 		LED_on(color);
-		Delay(1000000);
+		Delay(100000);
 		LED_off(color);
 		Delay(0);
 		flash++;
