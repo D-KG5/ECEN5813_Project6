@@ -296,7 +296,7 @@ static void task_ADC(void *pvParameters)
 			DMA_SubmitTransfer(&g_DMA_Handle, &transferConfig, kDMA_EnableInterrupt);
 
 			DMA_StartTransfer(&g_DMA_Handle);
-			Log_string("Started DMA Transfer\r\n", MAIN, LOG_STATUS);
+			Log_string("Started DMA Transfer\r\n", TASK_ADC, LOG_STATUS);
 			// manually set buffer metadata to full
 			DSPBuffer->size = (QUEUE_LENGTH * ITEM_SIZE);
 			DSPBuffer->tail = (QUEUE_LENGTH * ITEM_SIZE) ;
@@ -317,7 +317,7 @@ static void handler_task(void *pvParameters){
 		taskENTER_CRITICAL();
 		// empty queue
 		xQueueReset(ADCBuffer);
-		Log_string("Finished DMA Transfer\r\n", MAIN, LOG_STATUS);
+		Log_string("Finished DMA Transfer\r\n", HANDLER_TASK, LOG_STATUS);
 
 		// get data from DSP buffer and manuall set buffer metadata to empty
 		for(int i = 0; i < (QUEUE_LENGTH * ITEM_SIZE); i++){
@@ -332,7 +332,7 @@ static void handler_task(void *pvParameters){
 		}
 		PRINTF("Run: %d\r\n", counter);
 		// do processing and report 5 times, then end program
-		xTaskNotify(calculation,0,eNoAction);//notifies the calculation task to do the math processing
+		xTaskNotify(calculation, 0, eNoAction);//notifies the calculation task to do the math processing
 		counter++;
 		taskEXIT_CRITICAL();
 		if(counter < 6){
