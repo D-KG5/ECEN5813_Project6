@@ -32,9 +32,10 @@ void dac_voltagevalue()
 
 	for (int i=0;i<50;i++)
 	{
+		//calculates the volatge
      voltage=(2+(sin(.4*PI*step) ));
     // PRINTF("hello %f\n",voltage);
-     DAC_register_values[i]= (int) ((SE_12BIT*voltage/VREF_BRD)-1);
+     DAC_register_values[i]= (int) ((SE_12BIT*voltage/VREF_BRD)-1);//scale the voltage to register value
      step=step+0.1;
 	}
 }

@@ -150,7 +150,7 @@ static void timer_callback_dac(TimerHandle_t xTimer)
 void ADC0_IRQHandler(void)
 {
 	taskENTER_CRITICAL();
-    g_Adc16ConversionDoneFlag = true;
+    g_Adc16ConversionDoneFlag = true;//sets the flag to 1
     /* Read conversion result to clear the conversion completed flag. */
     g_Adc16ConversionValue = ADC16_GetChannelConversionValue(ADC16_BASEADDR, ADC16_CHANNEL_GROUP);
     taskEXIT_CRITICAL();
@@ -160,7 +160,7 @@ void ADC0_IRQHandler(void)
 static void timer_callback_adc(TimerHandle_t xTimer)
 {
     taskENTER_CRITICAL();
- 	start_adc=1;
+ 	start_adc=1;//sets the flag to one
 	taskEXIT_CRITICAL();
 }
 
@@ -178,9 +178,9 @@ int main(void)
     LED_init();
 
     EnableIRQ(ADC0_IRQn);
-    dac_Init();
-    adc_Init();
-    dma_Init();
+    dac_Init();//dac initialization
+    adc_Init();//adc initialization
+    dma_Init();//dma initialization
 
     // initialize DSP circular buffer
     DSPBuffer = init_buf(QUEUE_LENGTH * ITEM_SIZE);
@@ -228,7 +228,7 @@ int main(void)
 	    xTimerStart(timer_log_handle, 0);
 		xTimerStart(timer_dac_handle, 0);
 		xTimerStart(timer_adc_handle, 0);
-		vTaskStartScheduler();
+		vTaskStartScheduler();//starts the tasks
 	}
 
     for (;;)
@@ -243,7 +243,7 @@ static void task_DAC(void *pvParameters)
 {
     for (;;)
     {
-    	dac_voltagevalue();
+    	dac_voltagevalue();//scales the voltage to register value
     	if(start_dac==1)
     	{
     		// load DAC register values into DAC every 100ms
@@ -258,7 +258,7 @@ static void task_DAC(void *pvParameters)
 			}
 			taskEXIT_CRITICAL();
 			LED_off(GREEN);
-			start_dac=0;
+			start_dac=0;//sets the flag to one
     	}
     	taskYIELD();
     }
@@ -279,7 +279,7 @@ static void task_ADC(void *pvParameters)
     		g_Adc16ConversionDoneFlag = false;
             ADC16_SetChannelConfig(ADC16_BASEADDR, ADC16_CHANNEL_GROUP, &g_adc16ChannelConfigStruct);
 
-            while (!g_Adc16ConversionDoneFlag)
+            while (!g_Adc16ConversionDoneFlag)//waits till thr flag sets to one
             {
             }
             start_adc=0;
