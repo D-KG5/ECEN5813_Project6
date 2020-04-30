@@ -40,10 +40,14 @@ PES Project 6 for ECEN 5813. By Dhruva Koley and Sagar Eligar
 	- FreeRTOSConfig.h: header file for FreeRTOS config
   - dacregister_value.PNG: screenshot of dac register value plot
   - voltage_dac.PNG: screenshot of voltage dac value plot
+  
+- demo_program1.mp4: https://drive.google.com/open?id=1Cu9Xhx-Ru6xtFSYzPyVEyYF5e-en3wvh
+- demo_program2.mp4: https://drive.google.com/open?id=194cbHKgMOK5Z0zVx5uR68IFhaZoP2oBT
 
 # Notes
 - math processing is handled by another task that is notified by the handler task
 - the first entry of the first run will be 0 because of how the ADC works.
+- video refresh rate sometimes doesn't show green LED blinking
 
 # Environment
  - Windows 10
